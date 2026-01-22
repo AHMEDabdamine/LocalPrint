@@ -7,15 +7,43 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
-const PORT = process.env.PORT || 3001;
+// Environment configuration
+const NODE_ENV = process.env.NODE_ENV || "development";
+const isDev = NODE_ENV === "development";
+const PORT = process.env.PORT || (isDev ? 3001 : 3000);
 
 // Path configuration
+const DIST_DIR = path.join(__dirname, "dist");
 const UPLOADS_DIR = path.join(__dirname, "uploads");
 const DB_FILE = path.join(__dirname, "db.json");
 
+const app = express();
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// CORS for development (allow frontend on different port)
+if (isDev) {
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "http://localhost:5173");
+    res.header(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PUT, DELETE, OPTIONS"
+    );
+    res.header("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+}
+
 // Ensure directories exist
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+if (!fs.existsSync(DIST_DIR) && !isDev) {
+  console.warn("⚠️  DIST_DIR does not exist. Run build first!");
+}
 
 /**
  * DATABASE PERSISTENCE LAYER
@@ -30,7 +58,7 @@ const saveDB = () => {
     const data = JSON.stringify(dbCache, null, 2);
     fs.writeFileSync(DB_FILE, data, "utf-8");
   } catch (err) {
-    console.error("Failed to save DB:", err);
+    console.error("❌ Failed to save DB:", err);
   }
 };
 
@@ -40,20 +68,21 @@ const loadDB = () => {
       const data = fs.readFileSync(DB_FILE, "utf-8");
       if (data.trim()) {
         dbCache = JSON.parse(data);
+        console.log("✅ Database loaded successfully");
       }
     } else {
       saveDB();
+      console.log("✅ New database created");
     }
   } catch (err) {
-    console.error("Failed to load DB, using defaults:", err);
+    console.error("❌ Failed to load DB, using defaults:", err);
     saveDB();
   }
 };
 
 loadDB();
 
-app.use(express.json({ limit: "50mb" }));
-
+// Multer configuration
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
@@ -61,33 +90,64 @@ const storage = multer.diskStorage({
     cb(null, uniqueSuffix + path.extname(file.originalname));
   },
 });
-const upload = multer({ storage });
 
-// API Routes
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Add file type validation if needed
+    cb(null, true);
+  },
+});
+
+/**
+ * API ROUTES
+ */
+
+// Health check endpoint
+app.get("/api/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    environment: NODE_ENV,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Get all jobs
 app.get("/api/jobs", (req, res) => {
   res.status(200).json(dbCache.jobs || []);
 });
 
+// Upload new job
 app.post("/api/upload", upload.single("file"), (req, res) => {
   try {
-    if (!req.file) throw new Error("No file uploaded");
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ success: false, error: "No file uploaded" });
+    }
+
     const metadata = JSON.parse(req.body.metadata);
     const newJob = {
       ...metadata,
       serverFileName: req.file.filename,
       uploadDate: new Date().toISOString(),
+      fileSize: req.file.size,
+      fileType: req.file.mimetype,
     };
 
     dbCache.jobs.push(newJob);
     saveDB();
     res.status(200).json({ success: true, job: newJob });
   } catch (err) {
-    console.error("Upload Error:", err);
+    console.error("❌ Upload Error:", err);
     res.status(400).json({ success: false, error: "Invalid upload metadata" });
   }
 });
 
-// Update an existing job's file (Replacing the original)
+// Update job file
 app.post("/api/jobs/:id/file", upload.single("file"), (req, res) => {
   try {
     const jobId = req.params.id;
@@ -102,19 +162,19 @@ app.post("/api/jobs/:id/file", upload.single("file"), (req, res) => {
         .json({ success: false, error: "No file uploaded" });
     }
 
-    // Delete the old file from disk
+    // Delete old file
     if (job.serverFileName) {
       const oldPath = path.join(UPLOADS_DIR, job.serverFileName);
       if (fs.existsSync(oldPath)) {
         try {
           fs.unlinkSync(oldPath);
         } catch (e) {
-          console.warn("Could not delete old file:", oldPath);
+          console.warn("⚠️  Could not delete old file:", oldPath);
         }
       }
     }
 
-    // Update job metadata with new file info
+    // Update job
     job.serverFileName = req.file.filename;
     job.fileSize = req.file.size;
     job.fileType = req.file.mimetype;
@@ -122,33 +182,40 @@ app.post("/api/jobs/:id/file", upload.single("file"), (req, res) => {
     saveDB();
     res.status(200).json({ success: true, job });
   } catch (err) {
-    console.error("Update File Error:", err);
+    console.error("❌ Update File Error:", err);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 
+// Update job status
 app.put("/api/jobs/:id/status", (req, res) => {
   const { status } = req.body;
   const job = dbCache.jobs.find((j) => j.id === req.params.id);
+
   if (job) {
     job.status = status;
     saveDB();
-    res.status(200).json({ success: true });
+    res.status(200).json({ success: true, job });
   } else {
     res.status(404).json({ success: false, error: "Job not found" });
   }
 });
 
+// Delete job
 app.delete("/api/jobs/:id", (req, res) => {
   const index = dbCache.jobs.findIndex((j) => j.id === req.params.id);
+
   if (index !== -1) {
     const job = dbCache.jobs[index];
     const filePath = path.join(UPLOADS_DIR, job.serverFileName);
 
+    // Delete physical file
     try {
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     } catch (e) {
-      console.warn("Could not delete physical file:", filePath);
+      console.warn("⚠️  Could not delete physical file:", filePath);
     }
 
     dbCache.jobs.splice(index, 1);
@@ -159,38 +226,57 @@ app.delete("/api/jobs/:id", (req, res) => {
   }
 });
 
+// Download/view file
 app.get("/api/files/:filename", (req, res) => {
   const filePath = path.join(UPLOADS_DIR, req.params.filename);
+
   if (fs.existsSync(filePath)) {
     res.sendFile(filePath);
   } else {
-    res.status(404).send("File not found");
+    res.status(404).json({ error: "File not found" });
   }
 });
 
+// Get settings
 app.get("/api/settings", (req, res) => {
   res.status(200).json(dbCache.settings);
 });
 
+// Update settings
 app.post("/api/settings", (req, res) => {
-  dbCache.settings.shopName = req.body.shopName || dbCache.settings.shopName;
-  saveDB();
-  res.status(200).json({ success: true });
+  try {
+    if (req.body.shopName) {
+      dbCache.settings.shopName = req.body.shopName;
+    }
+    saveDB();
+    res.status(200).json({ success: true, settings: dbCache.settings });
+  } catch (err) {
+    console.error("❌ Settings update error:", err);
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to update settings" });
+  }
 });
 
-// Logo Upload Route
+// Upload logo
 app.post("/api/settings/logo", upload.single("logo"), (req, res) => {
   try {
-    if (!req.file) throw new Error("No file uploaded");
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ success: false, error: "No file uploaded" });
+    }
 
-    // Delete old logo if exists
+    // Delete old logo
     if (dbCache.settings.logoUrl) {
       const oldFilename = dbCache.settings.logoUrl.split("/").pop();
       const oldPath = path.join(UPLOADS_DIR, oldFilename);
       if (fs.existsSync(oldPath)) {
         try {
           fs.unlinkSync(oldPath);
-        } catch (e) {}
+        } catch (e) {
+          console.warn("⚠️  Could not delete old logo");
+        }
       }
     }
 
@@ -199,30 +285,76 @@ app.post("/api/settings/logo", upload.single("logo"), (req, res) => {
     saveDB();
     res.status(200).json({ success: true, logoUrl });
   } catch (err) {
+    console.error("❌ Logo upload error:", err);
     res.status(400).json({ success: false, error: err.message });
   }
 });
 
-// Serve static files
-app.use(express.static(__dirname));
+/**
+ * STATIC FILE SERVING & SPA ROUTING
+ */
 
-// Final Error Handling Middleware
+// Serve static files in production
+if (!isDev) {
+  app.use(
+    express.static(DIST_DIR, {
+      maxAge: "1d", // Cache static assets for 1 day
+      etag: true,
+    })
+  );
+}
+
+// Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error("❌ Unhandled Error:", err.stack);
   if (!res.headersSent) {
-    res.status(500).json({ success: false, error: "Internal Server Error" });
+    res.status(500).json({
+      success: false,
+      error: isDev ? err.message : "Internal Server Error",
+    });
   }
 });
 
-// BEST - explicit catch-all for SPA routing
-app.use((req, res) => {
-  if (req.path.startsWith("/api/")) {
-    return res.status(404).json({ error: "API endpoint not found" });
+// SPA fallback (must be last)
+if (!isDev) {
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api/")) {
+      return res.status(404).json({ error: "API endpoint not found" });
+    }
+    res.sendFile(path.join(DIST_DIR, "index.html"));
+  });
+}
+
+/**
+ * SERVER STARTUP
+ */
+const HOST = process.env.HOST || "0.0.0.0";
+
+app.listen(PORT, HOST, () => {
+  console.log("\n🚀 Server started successfully!");
+  console.log(`📦 Environment: ${NODE_ENV}`);
+  console.log(`🌐 Server URL: http://${HOST}:${PORT}`);
+
+  if (isDev) {
+    console.log(`🔧 Development mode - CORS enabled for http://localhost:5173`);
+    console.log(`💡 Frontend should run on port 5173 (Vite default)`);
+  } else {
+    console.log(`📁 Serving static files from: ${DIST_DIR}`);
   }
-  res.sendFile(path.join(__dirname, "index.html"));
+
+  console.log(`📂 Uploads directory: ${UPLOADS_DIR}`);
+  console.log(`💾 Database file: ${DB_FILE}\n`);
 });
 
-// Explicitly bind to 0.0.0.0 to allow access from other devices on the network
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running at http://0.0.0.0:${PORT}`);
+// Graceful shutdown
+process.on("SIGTERM", () => {
+  console.log("\n⏹️  SIGTERM received, shutting down gracefully...");
+  saveDB();
+  process.exit(0);
+});
+
+process.on("SIGINT", () => {
+  console.log("\n⏹️  SIGINT received, shutting down gracefully...");
+  saveDB();
+  process.exit(0);
 });

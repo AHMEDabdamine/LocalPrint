@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "start": "set NODE_ENV=production && node server.js",
     "dev": "concurrently \"vite \" \"node server.js\"",
     "build": "vite build",
     "preview": "vite preview",
