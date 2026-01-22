@@ -1,0 +1,50 @@
+
+import { Translations } from './types';
+
+export const TRANSLATIONS: Translations = {
+  appTitle: { en: 'PrintShop Hub', ar: 'مركز خدمات الطباعة' },
+  uploadTitle: { en: 'Upload Your Documents', ar: 'ارفع ملفاتك للطباعة' },
+  uploadSub: { en: 'Quick, easy, and secure document printing.', ar: 'طباعة مستندات سريعة وسهلة وآمنة.' },
+  customerName: { en: 'Customer Name', ar: 'اسم العميل' },
+  phoneNumber: { en: 'Phone Number', ar: 'رقم الهاتف' },
+  notes: { en: 'Notes (e.g. Number of copies, color/BW)', ar: 'ملاحظات (مثلاً: عدد النسخ، ملون/أبيض وأسود)' },
+  selectFile: { en: 'Select File', ar: 'اختر ملفاً' },
+  uploadBtn: { en: 'Upload and Submit', ar: 'رفع وإرسال' },
+  adminLogin: { en: 'Admin Login', ar: 'دخول المسؤول' },
+  password: { en: 'Password', ar: 'كلمة المرور' },
+  loginBtn: { en: 'Login', ar: 'تسجيل الدخول' },
+  dashboard: { en: 'Admin Dashboard', ar: 'لوحة التحكم' },
+  logout: { en: 'Logout', ar: 'خروج' },
+  noJobs: { en: 'No print jobs found.', ar: 'لا توجد طلبات طباعة.' },
+  fileName: { en: 'File Name', ar: 'اسم الملف' },
+  status: { en: 'Status', ar: 'الحالة' },
+  date: { en: 'Date', ar: 'التاريخ' },
+  actions: { en: 'Actions', ar: 'الإجراءات' },
+  pending: { en: 'Pending', ar: 'قيد الانتظار' },
+  printed: { en: 'Printed', ar: 'تمت الطباعة' },
+  download: { en: 'Download', ar: 'تحميل' },
+  delete: { en: 'Delete', ar: 'حذف' },
+  successMsg: { en: 'File uploaded successfully!', ar: 'تم رفع الملف بنجاح!' },
+  errorMsg: { en: 'Something went wrong. Please try again.', ar: 'حدث خطأ ما. يرجى المحاولة مرة أخرى.' },
+  dragDrop: { en: 'Drag and drop or click to upload', ar: 'اسحب وأفلت أو انقر للرفع' },
+  fileLimit: { en: 'Supported: PDF, DOCX, JPG, PNG', ar: 'المدعومة: PDF, DOCX, JPG, PNG' },
+  settings: { en: 'Settings', ar: 'الإعدادات' },
+  shopName: { en: 'Shop Name', ar: 'اسم المحل' },
+  shopLogo: { en: 'Shop Logo', ar: 'شعار المحل' },
+  saveSettings: { en: 'Save Settings', ar: 'حفظ الإعدادات' },
+  jobs: { en: 'Print Jobs', ar: 'طلبات الطباعة' },
+  edit: { en: 'Edit/Crop', ar: 'تعديل/قص' },
+  print: { en: 'Print', ar: 'طباعة' },
+  save: { en: 'Save Changes', ar: 'حفظ التغييرات' },
+  cancel: { en: 'Cancel', ar: 'إلغاء' },
+  normalCrop: { en: 'Normal Crop', ar: 'قص عادي' },
+  perspectiveCut: { en: 'Perspective Cut', ar: 'قص منظوري' },
+  recentUploads: { en: 'My Recent Uploads', ar: 'ملفاتي المرفوعة مؤخراً' },
+};
+
+export const ALLOWED_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image/jpeg',
+  'image/png'
+];
