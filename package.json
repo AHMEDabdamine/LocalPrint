@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "start": "set NODE_ENV=production && node server.js",
-    "dev": "concurrently \"vite \" \"node server.js\"",
+    "start": "cross-env NODE_ENV=production node server.js",
+    "dev": "cross-env NODE_ENV=development concurrently \"vite \" \"node server.js\"",
     "build": "vite build",
     "preview": "vite preview",
     "server": "node server.js"
@@ -20,6 +20,7 @@
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }
