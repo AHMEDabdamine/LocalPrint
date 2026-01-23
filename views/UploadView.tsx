@@ -461,11 +461,6 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
             <h2 className="text-xl font-bold text-gray-900">
               {t("recentUploads")}
             </h2>
-            <span className="text-xs text-gray-400">
-              {isRtl
-                ? "محفوظ محلياً في متصفحك"
-                : "Saved locally in your browser"}
-            </span>
           </div>
           <div className="grid gap-3">
             {recentJobs.map((job) => (
