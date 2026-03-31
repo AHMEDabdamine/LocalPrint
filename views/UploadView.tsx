@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Language, PrintJob, PrintStatus } from "../types";
 import { TRANSLATIONS, ALLOWED_TYPES } from "../constants";
 import { storageService } from "../services/storageService";
+import QRCode from "qrcode";
 
 interface UploadViewProps {
   lang: Language;
@@ -28,16 +29,108 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
     phone: "",
     notes: "",
   });
+  const [printPreferences, setPrintPreferences] = useState({
+    colorMode: "color" as "color" | "blackWhite",
+    copies: 1,
+  });
   const [selectedFiles, setSelectedFiles] = useState<FileStatus[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [overallSuccess, setOverallSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recentJobs, setRecentJobs] = useState<PrintJob[]>([]);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  const [showQrCode, setShowQrCode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     storageService.getMyRecentJobs().then(setRecentJobs);
   }, [overallSuccess]);
+
+  const generateQRCode = async () => {
+    try {
+      // Get local IP address for network access
+      const localIP = await getLocalIP();
+      const currentPort = window.location.port;
+      const qrData = `http://${localIP}:${currentPort}?ref=upload&lang=${lang}&shop=${encodeURIComponent(localIP)}`;
+
+      const qrCodeDataUrl = await QRCode.toDataURL(qrData, {
+        width: 256,
+        margin: 2,
+        color: {
+          dark: "#1f2937",
+          light: "#ffffff",
+        },
+      });
+
+      setQrCodeUrl(qrCodeDataUrl);
+      setShowQrCode(true);
+    } catch (err) {
+      console.error("Error generating QR code:", err);
+      setError(isRtl ? "فشل إنشاء رمز QR" : "Failed to generate QR code");
+    }
+  };
+
+  const getLocalIP = async (): Promise<string> => {
+    try {
+      // Method 1: Use WebRTC to get local IP
+      const rtc = new RTCPeerConnection({ iceServers: [] });
+      rtc.createDataChannel("", { reliable: false });
+      const candidate = await new Promise<RTCIceCandidate>(
+        (resolve, reject) => {
+          rtc.onicecandidate = (event) => {
+            if (event.candidate) {
+              resolve(event.candidate);
+            }
+          };
+          rtc
+            .createOffer()
+            .then((offer) => rtc.setLocalDescription(offer))
+            .catch(reject);
+        },
+      );
+
+      const ipMatch = candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
+      if (ipMatch && ipMatch[1]) {
+        return ipMatch[1];
+      }
+    } catch (err) {
+      console.log("WebRTC method failed, trying fallback");
+    }
+
+    try {
+      // Method 2: Fallback - try common network IP ranges
+      const hostname = window.location.hostname;
+      if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+        return hostname;
+      }
+
+      // Method 3: Try to detect from network interfaces (approximation)
+      // This is a simplified approach - in production you might want a more robust solution
+      const possibleIPs = [
+        "192.168.1.90", // From the dev server output
+        "192.168.137.1", // From the dev server output
+        "192.168.0.1",
+        "192.168.1.1",
+      ];
+
+      // Return the first likely candidate or fallback to localhost
+      return possibleIPs[0] || "localhost";
+    } catch (err) {
+      console.error("All IP detection methods failed:", err);
+      return "localhost";
+    }
+  };
+
+  const downloadQRCode = () => {
+    if (qrCodeUrl) {
+      const link = document.createElement("a");
+      link.download = `qrcode-${Date.now()}.png`;
+      link.href = qrCodeUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
@@ -88,6 +181,10 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
       fileSize: fileStatus.file.size,
       uploadDate: new Date().toISOString(),
       status: PrintStatus.PENDING,
+      printPreferences: {
+        colorMode: printPreferences.colorMode,
+        copies: printPreferences.copies,
+      },
     };
 
     setSelectedFiles((prev) =>
@@ -181,6 +278,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
             setOverallSuccess(false);
             setSelectedFiles([]);
             setFormData({ name: "", phone: "", notes: "" });
+            setPrintPreferences({ colorMode: "color", copies: 1 });
           }}
           className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition"
         >
@@ -197,6 +295,27 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
           {t("uploadTitle")}
         </h1>
         <p className="text-gray-600">{t("uploadSub")}</p>
+        <div className="mt-4 flex justify-center gap-3">
+          <button
+            onClick={generateQRCode}
+            className="inline-flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 transition"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+              ></path>
+            </svg>
+            {isRtl ? "إنشاء رمز QR" : "Generate QR Code"}
+          </button>
+        </div>
       </div>
 
       <form
@@ -249,17 +368,192 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
           </label>
           <textarea
             disabled={isUploading}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition h-24 resize-none disabled:bg-gray-50"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition h-20 resize-none disabled:bg-gray-50"
             value={formData.notes}
             onChange={(e) =>
               setFormData({ ...formData, notes: e.target.value })
             }
             placeholder={
               isRtl
-                ? "أدخل تعليمات الطباعة هنا (مثلاً: عدد النسخ)"
-                : "Enter printing instructions here..."
+                ? "أدخل تعليمات الطباعة الإضافية هنا..."
+                : "Enter additional printing instructions here..."
             }
           />
+        </div>
+
+        {/* Print Preferences Section */}
+        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+          <label className="block text-sm font-semibold text-gray-700 mb-3">
+            {isRtl ? "تفضيلات الطباعة" : "Print Preferences"}
+          </label>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Color Mode */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-2">
+                {isRtl ? "وضع الألوان" : "Color Mode"}
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={isUploading}
+                  onClick={() =>
+                    setPrintPreferences({
+                      ...printPreferences,
+                      colorMode: "color",
+                    })
+                  }
+                  className={`flex-1 px-3 py-2 text-sm font-medium rounded-md border transition ${
+                    printPreferences.colorMode === "color"
+                      ? "bg-indigo-600 text-white border-indigo-600"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {isRtl ? "ملون" : "Color"}
+                </button>
+                <button
+                  type="button"
+                  disabled={isUploading}
+                  onClick={() =>
+                    setPrintPreferences({
+                      ...printPreferences,
+                      colorMode: "blackWhite",
+                    })
+                  }
+                  className={`flex-1 px-3 py-2 text-sm font-medium rounded-md border transition ${
+                    printPreferences.colorMode === "blackWhite"
+                      ? "bg-indigo-600 text-white border-indigo-600"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {isRtl ? "أبيض وأسود" : "B&W"}
+                </button>
+              </div>
+            </div>
+
+            {/* Number of Copies */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-2">
+                {isRtl ? "عدد النسخ" : "Number of Copies"}
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isUploading || printPreferences.copies <= 1}
+                  onClick={() =>
+                    setPrintPreferences({
+                      ...printPreferences,
+                      copies: Math.max(1, printPreferences.copies - 1),
+                    })
+                  }
+                  className="w-8 h-8 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M20 12H4"
+                    ></path>
+                  </svg>
+                </button>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  disabled={isUploading}
+                  value={printPreferences.copies}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 1;
+                    setPrintPreferences({
+                      ...printPreferences,
+                      copies: Math.max(1, Math.min(100, value)),
+                    });
+                  }}
+                  className="flex-1 px-3 py-2 text-center border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 outline-none disabled:bg-gray-50"
+                />
+                <button
+                  type="button"
+                  disabled={isUploading || printPreferences.copies >= 100}
+                  onClick={() =>
+                    setPrintPreferences({
+                      ...printPreferences,
+                      copies: Math.min(100, printPreferences.copies + 1),
+                    })
+                  }
+                  className="w-8 h-8 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 4v16m8-8H4"
+                    ></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Options */}
+          <div className="mt-3 pt-3 border-t border-gray-200">
+            <p className="text-xs text-gray-500 mb-2">
+              {isRtl ? "خيارات سريعة:" : "Quick options:"}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={isUploading}
+                onClick={() =>
+                  setPrintPreferences({ colorMode: "blackWhite", copies: 1 })
+                }
+                className="px-2 py-1 text-xs bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isRtl ? "أبيض وأسود، نسخة واحدة" : "B&W, 1 copy"}
+              </button>
+              <button
+                type="button"
+                disabled={isUploading}
+                onClick={() =>
+                  setPrintPreferences({ colorMode: "color", copies: 1 })
+                }
+                className="px-2 py-1 text-xs bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isRtl ? "ملون، نسخة واحدة" : "Color, 1 copy"}
+              </button>
+              <button
+                type="button"
+                disabled={isUploading}
+                onClick={() =>
+                  setPrintPreferences({ colorMode: "blackWhite", copies: 2 })
+                }
+                className="px-2 py-1 text-xs bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isRtl ? "أبيض وأسود، نسختان" : "B&W, 2 copies"}
+              </button>
+              <button
+                type="button"
+                disabled={isUploading}
+                onClick={() =>
+                  setPrintPreferences({ colorMode: "color", copies: 2 })
+                }
+                className="px-2 py-1 text-xs bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isRtl ? "ملون، نسختان" : "Color, 2 copies"}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="relative">
@@ -533,6 +827,80 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* QR Code Modal */}
+      {showQrCode && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900">
+                {isRtl ? "رمز QR للموقع" : "QR Code for Upload Page"}
+              </h3>
+              <button
+                onClick={() => setShowQrCode(false)}
+                className="text-gray-400 hover:text-gray-600 transition"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  ></path>
+                </svg>
+              </button>
+            </div>
+
+            <div className="text-center mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                {isRtl
+                  ? "امسح هذا الرمز للوصول السريع إلى صفحة الرفع"
+                  : "Scan this code for quick access to the upload page"}
+              </p>
+              <p className="text-xs text-gray-500 mb-4">
+                {isRtl
+                  ? "يعمل على نفس الشبكة المحلية فقط"
+                  : "Works on the same local network only"}
+              </p>
+
+              {qrCodeUrl && (
+                <div className="flex justify-center mb-4">
+                  <img
+                    src={qrCodeUrl}
+                    alt="QR Code"
+                    className="border-2 border-gray-200 rounded-lg"
+                  />
+                </div>
+              )}
+
+              <button
+                onClick={downloadQRCode}
+                className="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  ></path>
+                </svg>
+                {isRtl ? "تحميل رمز QR" : "Download QR Code"}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -39,6 +39,19 @@ const App: React.FC = () => {
     localStorage.setItem("ps_language", lang);
   }, [lang]);
 
+  // Load settings from server
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const serverSettings = await storageService.getSettings();
+        setSettings(serverSettings);
+      } catch (error) {
+        console.error("Failed to load settings:", error);
+      }
+    };
+    loadSettings();
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl/Cmd + K for quick admin access

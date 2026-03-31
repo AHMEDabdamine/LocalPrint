@@ -1,7 +1,7 @@
-/* Arabic Font Styles - Alhurra font */
+/* Arabic Font Styles - IBM Plex Arabic Text font */
 @font-face {
-  font-family: "Alhurra";
-  src: url("/Alhurra.ttf") format("truetype");
+  font-family: "IBMPlexArabic";
+  src: url("/IBMPlexArabic-Text.ttf") format("truetype");
   font-weight: normal;
   font-style: normal;
   unicode-range:
@@ -10,11 +10,11 @@
 
 /* Arabic text styling */
 [dir="rtl"] {
-  font-family: "Alhurra", sans-serif;
+  font-family: "IBMPlexArabic", sans-serif;
 }
 
 [dir="rtl"] body {
-  font-family: "Alhurra", sans-serif;
+  font-family: "IBMPlexArabic", sans-serif;
 }
 
 [dir="rtl"] h1,
@@ -23,13 +23,13 @@
 [dir="rtl"] h4,
 [dir="rtl"] h5,
 [dir="rtl"] h6 {
-  font-family: "Alhurra", sans-serif;
+  font-family: "IBMPlexArabic", sans-serif;
   font-weight: 700;
 }
 
 [dir="rtl"] .font-bold,
 [dir="rtl"] .font-semibold {
-  font-family: "Alhurra", sans-serif;
+  font-family: "IBMPlexArabic", sans-serif;
   font-weight: 700;
 }
 
@@ -41,7 +41,7 @@
 [dir="rtl"] input,
 [dir="rtl"] textarea {
   text-align: right;
-  font-family: "Alhurra", sans-serif;
+  font-family: "IBMPlexArabic", sans-serif;
 }
 
 /* RTL layout adjustments */

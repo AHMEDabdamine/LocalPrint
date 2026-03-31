@@ -1,7 +1,6 @@
-
 export enum PrintStatus {
-  PENDING = 'PENDING',
-  PRINTED = 'PRINTED'
+  PENDING = "PENDING",
+  PRINTED = "PRINTED",
 }
 
 export interface PrintJob {
@@ -15,14 +14,22 @@ export interface PrintJob {
   uploadDate: string;
   status: PrintStatus;
   fileBlob?: Blob; // In a real app, this is a URL/Path on server
+  printPreferences?: {
+    colorMode: "color" | "blackWhite";
+    copies: number;
+  };
 }
 
 export interface ShopSettings {
   shopName: string;
   logoUrl: string | null;
+  pricing?: {
+    colorPerPage: number;
+    blackWhitePerPage: number;
+  };
 }
 
-export type Language = 'en' | 'ar';
+export type Language = "en" | "ar";
 
 export interface Translations {
   [key: string]: {

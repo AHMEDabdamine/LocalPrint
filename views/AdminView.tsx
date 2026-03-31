@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Language, PrintJob, PrintStatus, ShopSettings } from "../types";
 import { TRANSLATIONS } from "../constants";
 import { storageService } from "../services/storageService";
+import {
+  calculatePrintPrice,
+  getActualPageCount,
+  formatPrice,
+  calculateCustomerTotal,
+} from "../utils/pricingUtils";
 import ImageEditor from "../components/ImageEditor";
 
 interface AdminViewProps {
@@ -51,10 +57,27 @@ const AdminView: React.FC<AdminViewProps> = ({
   const [logoUrl, setLogoUrl] = useState<string | null>(
     currentSettings.logoUrl,
   );
+  const [colorPrice, setColorPrice] = useState(
+    currentSettings.pricing?.colorPerPage || 30.0,
+  );
+  const [blackWhitePrice, setBlackWhitePrice] = useState(
+    currentSettings.pricing?.blackWhitePerPage || 15.0,
+  );
+  const [jobPageCounts, setJobPageCounts] = useState<{
+    [jobId: string]: number;
+  }>({});
 
   useEffect(() => {
     loadJobs();
   }, []);
+
+  // Load current settings when component mounts
+  useEffect(() => {
+    setShopName(currentSettings.shopName);
+    setLogoUrl(currentSettings.logoUrl);
+    setColorPrice(currentSettings.pricing?.colorPerPage || 30.0);
+    setBlackWhitePrice(currentSettings.pricing?.blackWhitePerPage || 15.0);
+  }, [currentSettings]);
 
   const loadJobs = async () => {
     setLoading(true);
@@ -97,6 +120,35 @@ const AdminView: React.FC<AdminViewProps> = ({
 
     setGroups(sortedGroups);
     setLoading(false);
+
+    // Count pages for all jobs
+    countPagesForAllJobs(sortedGroups);
+  };
+
+  const countPagesForAllJobs = async (groups: CustomerGroup[]) => {
+    const pageCounts: { [jobId: string]: number } = {};
+
+    for (const group of groups) {
+      for (const job of group.jobs) {
+        try {
+          const url = await storageService.getFileUrl(job.id);
+          if (url) {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const file = new File([blob], job.fileName, { type: job.fileType });
+            const pageCount = await getActualPageCount(file);
+            pageCounts[job.id] = pageCount;
+          } else {
+            pageCounts[job.id] = 1;
+          }
+        } catch (error) {
+          console.error(`Error counting pages for job ${job.id}:`, error);
+          pageCounts[job.id] = 1;
+        }
+      }
+    }
+
+    setJobPageCounts(pageCounts);
   };
 
   const toggleGroup = (key: string) => {
@@ -302,8 +354,21 @@ const AdminView: React.FC<AdminViewProps> = ({
   };
 
   const saveSettings = async () => {
-    await storageService.saveSettings({ shopName });
-    onSettingsUpdate({ ...currentSettings, shopName });
+    await storageService.saveSettings({
+      shopName,
+      pricing: {
+        colorPerPage: colorPrice,
+        blackWhitePerPage: blackWhitePrice,
+      },
+    });
+    onSettingsUpdate({
+      ...currentSettings,
+      shopName,
+      pricing: {
+        colorPerPage: colorPrice,
+        blackWhitePerPage: blackWhitePrice,
+      },
+    });
     alert(isRtl ? "تم الحفظ" : "Saved");
   };
 
@@ -578,6 +643,13 @@ const AdminView: React.FC<AdminViewProps> = ({
                   const allInGroupSelected = group.jobs.every((id) =>
                     selectedJobIds.has(id.id),
                   );
+                  const customerTotal = currentSettings.pricing
+                    ? calculateCustomerTotal(
+                        group.jobs,
+                        currentSettings,
+                        jobPageCounts,
+                      )
+                    : 0;
 
                   return (
                     <div
@@ -630,6 +702,12 @@ const AdminView: React.FC<AdminViewProps> = ({
                                 {group.phoneNumber ||
                                   (isRtl ? "بدون هاتف" : "No Phone")}
                               </p>
+                              {customerTotal > 0 && (
+                                <p className="text-sm font-bold text-green-600 mt-1">
+                                  {isRtl ? "الإجمالي:" : "Total:"}{" "}
+                                  {formatPrice(customerTotal)}
+                                </p>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -718,10 +796,11 @@ const AdminView: React.FC<AdminViewProps> = ({
                                         onChange={() => toggleSelectJob(job.id)}
                                       />
                                     </td>
-                                    <td className="px-6 py-4">
-                                      <div className="flex items-center gap-2 mb-1">
+                                    <td className="px-6 py-3">
+                                      <div className="flex items-center gap-3">
+                                        {/* File type badge */}
                                         <span
-                                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 ${
                                             ext === "PDF"
                                               ? "bg-red-50 text-red-600 border-red-100"
                                               : ext === "DOCX" || ext === "DOC"
@@ -731,20 +810,87 @@ const AdminView: React.FC<AdminViewProps> = ({
                                         >
                                           {ext}
                                         </span>
-                                        <div className="text-sm text-gray-900 font-medium truncate max-w-xs">
-                                          {job.fileName}
+
+                                        {/* File name and info */}
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <div className="text-sm font-medium text-gray-900 truncate">
+                                              {job.fileName}
+                                            </div>
+                                            <span className="text-xs text-gray-400 flex-shrink-0">
+                                              {formatSize(job.fileSize)}
+                                            </span>
+                                            {job.printPreferences && (
+                                              <>
+                                                <span
+                                                  className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                                                    job.printPreferences
+                                                      .colorMode ===
+                                                    "blackWhite"
+                                                      ? "bg-gray-100 text-gray-700"
+                                                      : "bg-blue-100 text-blue-700"
+                                                  }`}
+                                                >
+                                                  {job.printPreferences
+                                                    .colorMode === "blackWhite"
+                                                    ? isRtl
+                                                      ? "أبيض وأسود"
+                                                      : "B&W"
+                                                    : isRtl
+                                                      ? "ملون"
+                                                      : "Color"}
+                                                </span>
+                                                {job.printPreferences.copies >
+                                                  1 && (
+                                                  <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium flex-shrink-0">
+                                                    {
+                                                      job.printPreferences
+                                                        .copies
+                                                    }
+                                                    x {isRtl ? "نسخ" : "copies"}
+                                                  </span>
+                                                )}
+                                              </>
+                                            )}
+                                            {currentSettings.pricing && (
+                                              <span className="text-sm font-bold text-green-600 flex-shrink-0">
+                                                {formatPrice(
+                                                  calculatePrintPrice(
+                                                    job,
+                                                    currentSettings,
+                                                    jobPageCounts[job.id] || 1,
+                                                  ).totalPrice,
+                                                )}
+                                              </span>
+                                            )}
+                                          </div>
+                                          {job.notes && (
+                                            <div className="text-xs text-indigo-600 italic mt-0.5">
+                                              {job.notes}
+                                            </div>
+                                          )}
+                                          {currentSettings.pricing && (
+                                            <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400">
+                                              <span>
+                                                {isRtl ? "صفحات:" : "Pages:"}{" "}
+                                                {jobPageCounts[job.id] || 1}
+                                              </span>
+                                              <span>
+                                                {formatPrice(
+                                                  calculatePrintPrice(
+                                                    job,
+                                                    currentSettings,
+                                                    jobPageCounts[job.id] || 1,
+                                                  ).pricePerPage,
+                                                )}
+                                                /{isRtl ? "صفحة" : "page"}
+                                              </span>
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
-                                      <div className="text-xs text-gray-500">
-                                        {formatSize(job.fileSize)}
-                                      </div>
-                                      {job.notes && (
-                                        <div className="text-xs text-indigo-600 italic mt-1 font-medium">
-                                          {job.notes}
-                                        </div>
-                                      )}
                                     </td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-6 py-3">
                                       <span
                                         className={`px-2 py-1 text-xs font-bold rounded-full ${
                                           job.status === PrintStatus.PRINTED
@@ -757,7 +903,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                                           : t("pending")}
                                       </span>
                                     </td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-6 py-3">
                                       <div className="flex gap-1">
                                         {!wordFile && (
                                           <button
@@ -908,6 +1054,56 @@ const AdminView: React.FC<AdminViewProps> = ({
                 />
               </div>
             </div>
+
+            {/* Pricing Settings */}
+            <div className="border-t border-gray-200 pt-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {isRtl ? "أسعار الطباعة" : "Pricing Settings"}
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    {isRtl
+                      ? "سعر الطباعة الملونة (لكل صفحة)"
+                      : "Color Printing (per page)"}
+                  </label>
+                  <div className="flex items-center">
+                    <span className="text-gray-500 mr-2">DZD</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                      value={colorPrice}
+                      onChange={(e) =>
+                        setColorPrice(parseFloat(e.target.value) || 0)
+                      }
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    {isRtl
+                      ? "سعر الطباعة بالأبيض والأسود (لكل صفحة)"
+                      : "Black & White Printing (per page)"}
+                  </label>
+                  <div className="flex items-center">
+                    <span className="text-gray-500 mr-2">DZD</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                      value={blackWhitePrice}
+                      onChange={(e) =>
+                        setBlackWhitePrice(parseFloat(e.target.value) || 0)
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <button
               onClick={saveSettings}
               className="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 transition shadow-md shadow-indigo-100"

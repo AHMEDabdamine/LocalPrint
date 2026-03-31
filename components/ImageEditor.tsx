@@ -53,6 +53,8 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
 
   const [dragIdx, setDragIdx] = useState<number | "rect" | null>(null);
   const [offset, setOffset] = useState<Point>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [globalMousePos, setGlobalMousePos] = useState<Point>({ x: 0, y: 0 });
 
   useEffect(() => {
     const img = new Image();
@@ -88,6 +90,31 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
     return () => URL.revokeObjectURL(url);
   }, [imageBlob]);
 
+  // Global mouse tracking for smooth corner control
+  useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (isDragging && dragIdx !== null) {
+        setGlobalMousePos({ x: e.clientX, y: e.clientY });
+      }
+    };
+
+    const handleGlobalMouseUp = () => {
+      if (isDragging) {
+        setIsDragging(false);
+        setDragIdx(null);
+      }
+    };
+
+    if (isDragging) {
+      document.addEventListener("mousemove", handleGlobalMouseMove);
+      document.addEventListener("mouseup", handleGlobalMouseUp);
+      return () => {
+        document.removeEventListener("mousemove", handleGlobalMouseMove);
+        document.removeEventListener("mouseup", handleGlobalMouseUp);
+      };
+    }
+  }, [isDragging, dragIdx]);
+
   const draw = () => {
     const canvas = canvasRef.current;
     if (!canvas || !image || baseSize.width === 0) return;
@@ -113,7 +140,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
         cropRect.x * zoom,
         cropRect.y * zoom,
         cropRect.w * zoom,
-        cropRect.h * zoom
+        cropRect.h * zoom,
       );
       ctx.fill("evenodd");
 
@@ -124,7 +151,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
         cropRect.x * zoom,
         cropRect.y * zoom,
         cropRect.w * zoom,
-        cropRect.h * zoom
+        cropRect.h * zoom,
       );
 
       // Handles
@@ -199,13 +226,17 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
     const x = (e.clientX - rect.left) / zoom;
     const y = (e.clientY - rect.top) / zoom;
 
-    const handleRadius = 15 / zoom; // Adjust hit area based on zoom
+    const handleRadius = 20 / zoom; // Increased hit area for better usability
 
     if (mode === "perspective") {
       const idx = points.findIndex(
-        (p) => Math.hypot(p.x - x, p.y - y) < handleRadius * 2
+        (p) => Math.hypot(p.x - x, p.y - y) < handleRadius,
       );
-      if (idx !== -1) setDragIdx(idx);
+      if (idx !== -1) {
+        setDragIdx(idx);
+        setIsDragging(true);
+        setGlobalMousePos({ x: e.clientX, y: e.clientY });
+      }
     } else {
       const handles = [
         { x: cropRect.x, y: cropRect.y },
@@ -214,10 +245,12 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
         { x: cropRect.x, y: cropRect.y + cropRect.h },
       ];
       const hIdx = handles.findIndex(
-        (p) => Math.hypot(p.x - x, p.y - y) < handleRadius * 2
+        (p) => Math.hypot(p.x - x, p.y - y) < handleRadius,
       );
       if (hIdx !== -1) {
         setDragIdx(hIdx);
+        setIsDragging(true);
+        setGlobalMousePos({ x: e.clientX, y: e.clientY });
       } else if (
         x > cropRect.x &&
         x < cropRect.x + cropRect.w &&
@@ -225,39 +258,47 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
         y < cropRect.y + cropRect.h
       ) {
         setDragIdx("rect");
+        setIsDragging(true);
         setOffset({ x: x - cropRect.x, y: y - cropRect.y });
+        setGlobalMousePos({ x: e.clientX, y: e.clientY });
       }
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (dragIdx === null) return;
+    if (!isDragging || dragIdx === null) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
 
-    const x = Math.max(
-      0,
-      Math.min(baseSize.width, (e.clientX - rect.left) / zoom)
+    // Use global mouse position for smooth tracking
+    const x = (globalMousePos.x - rect.left) / zoom;
+    const y = (globalMousePos.y - rect.top) / zoom;
+
+    // Allow movement beyond canvas bounds for better control
+    const clampedX = Math.max(
+      -baseSize.width * 0.5,
+      Math.min(baseSize.width * 1.5, x),
     );
-    const y = Math.max(
-      0,
-      Math.min(baseSize.height, (e.clientY - rect.top) / zoom)
+    const clampedY = Math.max(
+      -baseSize.height * 0.5,
+      Math.min(baseSize.height * 1.5, y),
     );
 
     if (mode === "perspective") {
       const newPoints = [...points];
-      newPoints[dragIdx as number] = { x, y };
+      newPoints[dragIdx as number] = { x: clampedX, y: clampedY };
       setPoints(newPoints);
     } else {
       if (dragIdx === "rect") {
         const nx = Math.max(
           0,
-          Math.min(baseSize.width - cropRect.w, x - offset.x)
+          Math.min(baseSize.width - cropRect.w, clampedX - offset.x),
         );
         const ny = Math.max(
           0,
-          Math.min(baseSize.height - cropRect.h, y - offset.y)
+          Math.min(baseSize.height - cropRect.h, clampedY - offset.y),
         );
         setCropRect((prev) => ({ ...prev, x: nx, y: ny }));
       } else {
@@ -265,21 +306,21 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
         setCropRect((prev) => {
           let { x: nx, y: ny, w: nw, h: nh } = prev;
           if (idx === 0) {
-            nw += nx - x;
-            nh += ny - y;
-            nx = x;
-            ny = y;
+            nw += nx - clampedX;
+            nh += ny - clampedY;
+            nx = clampedX;
+            ny = clampedY;
           } else if (idx === 1) {
-            nw = x - nx;
-            nh += ny - y;
-            ny = y;
+            nw = clampedX - nx;
+            nh += ny - clampedY;
+            ny = clampedY;
           } else if (idx === 2) {
-            nw = x - nx;
-            nh = y - ny;
+            nw = clampedX - nx;
+            nh = clampedY - ny;
           } else if (idx === 3) {
-            nw += nx - x;
-            nh = y - ny;
-            nx = x;
+            nw += nx - clampedX;
+            nh = clampedY - ny;
+            nx = clampedX;
           }
           return { x: nx, y: ny, w: Math.max(20, nw), h: Math.max(20, nh) };
         });
@@ -316,7 +357,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
         0,
         0,
         canvas.width,
-        canvas.height
+        canvas.height,
       );
     } else {
       const minX = Math.min(...points.map((p) => p.x)) * scale;
@@ -334,7 +375,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
         0,
         0,
         canvas.width,
-        canvas.height
+        canvas.height,
       );
     }
 
@@ -499,8 +540,18 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
               ref={canvasRef}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
-              onMouseUp={() => setDragIdx(null)}
-              onMouseLeave={() => setDragIdx(null)}
+              onMouseUp={() => {
+                if (isDragging) {
+                  setIsDragging(false);
+                  setDragIdx(null);
+                }
+              }}
+              onMouseLeave={() => {
+                if (isDragging) {
+                  setIsDragging(false);
+                  setDragIdx(null);
+                }
+              }}
               className="cursor-crosshair bg-white"
             />
           </div>
