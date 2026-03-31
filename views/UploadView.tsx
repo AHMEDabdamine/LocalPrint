@@ -76,7 +76,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
     fileStatus: FileStatus,
     name: string,
     phone: string,
-    notes: string
+    notes: string,
   ) => {
     const job: PrintJob = {
       id: generateSafeId(),
@@ -92,29 +92,29 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
 
     setSelectedFiles((prev) =>
       prev.map((f) =>
-        f.id === fileStatus.id ? { ...f, status: "uploading" } : f
-      )
+        f.id === fileStatus.id ? { ...f, status: "uploading" } : f,
+      ),
     );
 
     try {
       await storageService.saveJob(job, fileStatus.file, (progress) => {
         setSelectedFiles((prev) =>
-          prev.map((f) => (f.id === fileStatus.id ? { ...f, progress } : f))
+          prev.map((f) => (f.id === fileStatus.id ? { ...f, progress } : f)),
         );
       });
       setSelectedFiles((prev) =>
         prev.map((f) =>
           f.id === fileStatus.id
             ? { ...f, status: "success", progress: 100 }
-            : f
-        )
+            : f,
+        ),
       );
     } catch (err) {
       console.error("Upload error for file:", fileStatus.file.name, err);
       setSelectedFiles((prev) =>
         prev.map((f) =>
-          f.id === fileStatus.id ? { ...f, status: "error" } : f
-        )
+          f.id === fileStatus.id ? { ...f, status: "error" } : f,
+        ),
       );
       throw err;
     }
@@ -137,7 +137,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
           fileStatus,
           formData.name,
           formData.phone,
-          formData.notes
+          formData.notes,
         );
       }
       setOverallSuccess(true);
@@ -513,7 +513,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
                     <p className="text-xs text-gray-400">
                       {new Date(job.uploadDate).toLocaleDateString(
                         isRtl ? "ar-EG" : "en-US",
-                        { numberingSystem: "latn" }
+                        { numberingSystem: "latn" },
                       )}
                     </p>
                   </div>

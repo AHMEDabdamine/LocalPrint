@@ -39,7 +39,7 @@ const AdminView: React.FC<AdminViewProps> = ({
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"jobs" | "settings">("jobs");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
 
   const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
@@ -49,7 +49,7 @@ const AdminView: React.FC<AdminViewProps> = ({
 
   const [shopName, setShopName] = useState(currentSettings.shopName);
   const [logoUrl, setLogoUrl] = useState<string | null>(
-    currentSettings.logoUrl
+    currentSettings.logoUrl,
   );
 
   useEffect(() => {
@@ -80,18 +80,18 @@ const AdminView: React.FC<AdminViewProps> = ({
         }
         return acc;
       },
-      {}
+      {},
     );
 
     const sortedGroups = Object.values(grouped).sort(
       (a, b) =>
-        new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime()
+        new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime(),
     );
 
     sortedGroups.forEach((group) => {
       group.jobs.sort(
         (a, b) =>
-          new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime()
+          new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime(),
       );
     });
 
@@ -121,7 +121,7 @@ const AdminView: React.FC<AdminViewProps> = ({
 
   const toggleSelectGroup = (
     jobs: PrintJob[],
-    e: React.ChangeEvent<HTMLInputElement>
+    e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const jobIds = jobs.map((j) => j.id);
     const allSelectedInGroup = jobIds.every((id) => selectedJobIds.has(id));
@@ -226,7 +226,7 @@ const AdminView: React.FC<AdminViewProps> = ({
       confirm(
         isRtl
           ? `هل أنت متأكد من حذف ${count} ملف؟`
-          : `Are you sure you want to delete ${count} files?`
+          : `Are you sure you want to delete ${count} files?`,
       )
     ) {
       const ids = Array.from(selectedJobIds);
@@ -258,7 +258,7 @@ const AdminView: React.FC<AdminViewProps> = ({
       alert(
         isRtl
           ? "تحرير الصور متاح لملفات الصور فقط."
-          : "Editing is only for image files."
+          : "Editing is only for image files.",
       );
     }
   };
@@ -493,6 +493,25 @@ const AdminView: React.FC<AdminViewProps> = ({
         </div>
         <div className="flex items-center gap-3">
           <button
+            onClick={() => (window.location.hash = "")}
+            className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-lg hover:bg-indigo-100 transition flex items-center gap-2 text-sm font-semibold"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+              ></path>
+            </svg>
+            {isRtl ? "صفحة الرفع" : "Upload Page"}
+          </button>
+          <button
             onClick={onLogout}
             className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-200 transition flex items-center gap-2 text-sm font-semibold"
           >
@@ -554,10 +573,10 @@ const AdminView: React.FC<AdminViewProps> = ({
                   const isCollapsed = collapsedGroups.has(group.key);
                   const isExpanded = !isCollapsed;
                   const pendingCount = group.jobs.filter(
-                    (j) => j.status === PrintStatus.PENDING
+                    (j) => j.status === PrintStatus.PENDING,
                   ).length;
                   const allInGroupSelected = group.jobs.every((id) =>
-                    selectedJobIds.has(id.id)
+                    selectedJobIds.has(id.id),
                   );
 
                   return (
@@ -706,8 +725,8 @@ const AdminView: React.FC<AdminViewProps> = ({
                                             ext === "PDF"
                                               ? "bg-red-50 text-red-600 border-red-100"
                                               : ext === "DOCX" || ext === "DOC"
-                                              ? "bg-blue-50 text-blue-600 border-blue-100"
-                                              : "bg-indigo-50 text-indigo-600 border-indigo-100"
+                                                ? "bg-blue-50 text-blue-600 border-blue-100"
+                                                : "bg-indigo-50 text-indigo-600 border-indigo-100"
                                           }`}
                                         >
                                           {ext}
