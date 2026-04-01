@@ -7,6 +7,8 @@ import {
   getActualPageCount,
   formatPrice,
   calculateCustomerTotal,
+  calculateDiscounts,
+  getOrderSummary,
 } from "../utils/pricingUtils";
 import ImageEditor from "../components/ImageEditor";
 
@@ -67,6 +69,22 @@ const AdminView: React.FC<AdminViewProps> = ({
     [jobId: string]: number;
   }>({});
 
+  // Discount settings state
+  const [discountsEnabled, setDiscountsEnabled] = useState(
+    currentSettings.discounts?.enabled || false,
+  );
+  const [allowStacking, setAllowStacking] = useState(
+    currentSettings.discounts?.allowStacking || false,
+  );
+  const [maxDiscount, setMaxDiscount] = useState(
+    currentSettings.discounts?.maxDiscount || null,
+  );
+  const [discountRules, setDiscountRules] = useState(
+    currentSettings.discounts?.rules || [],
+  );
+  const [showAddRule, setShowAddRule] = useState(false);
+  const [editingRule, setEditingRule] = useState<string | null>(null);
+
   useEffect(() => {
     loadJobs();
   }, []);
@@ -77,6 +95,10 @@ const AdminView: React.FC<AdminViewProps> = ({
     setLogoUrl(currentSettings.logoUrl);
     setColorPrice(currentSettings.pricing?.colorPerPage || 30.0);
     setBlackWhitePrice(currentSettings.pricing?.blackWhitePerPage || 15.0);
+    setDiscountsEnabled(currentSettings.discounts?.enabled || false);
+    setAllowStacking(currentSettings.discounts?.allowStacking || false);
+    setMaxDiscount(currentSettings.discounts?.maxDiscount || null);
+    setDiscountRules(currentSettings.discounts?.rules || []);
   }, [currentSettings]);
 
   const loadJobs = async () => {
@@ -126,11 +148,13 @@ const AdminView: React.FC<AdminViewProps> = ({
   };
 
   const countPagesForAllJobs = async (groups: CustomerGroup[]) => {
+    console.log("Starting page counting for all jobs...");
     const pageCounts: { [jobId: string]: number } = {};
 
     for (const group of groups) {
       for (const job of group.jobs) {
         try {
+          console.log(`Processing job: ${job.fileName} (ID: ${job.id})`);
           const url = await storageService.getFileUrl(job.id);
           if (url) {
             const response = await fetch(url);
@@ -138,7 +162,11 @@ const AdminView: React.FC<AdminViewProps> = ({
             const file = new File([blob], job.fileName, { type: job.fileType });
             const pageCount = await getActualPageCount(file);
             pageCounts[job.id] = pageCount;
+            console.log(`Set page count for job ${job.id}: ${pageCount} pages`);
           } else {
+            console.log(
+              `No URL found for job ${job.id}, setting default 1 page`,
+            );
             pageCounts[job.id] = 1;
           }
         } catch (error) {
@@ -148,6 +176,7 @@ const AdminView: React.FC<AdminViewProps> = ({
       }
     }
 
+    console.log("Final page counts:", pageCounts);
     setJobPageCounts(pageCounts);
   };
 
@@ -360,6 +389,12 @@ const AdminView: React.FC<AdminViewProps> = ({
         colorPerPage: colorPrice,
         blackWhitePerPage: blackWhitePrice,
       },
+      discounts: {
+        enabled: discountsEnabled,
+        allowStacking,
+        maxDiscount,
+        rules: discountRules,
+      },
     });
     onSettingsUpdate({
       ...currentSettings,
@@ -368,8 +403,52 @@ const AdminView: React.FC<AdminViewProps> = ({
         colorPerPage: colorPrice,
         blackWhitePerPage: blackWhitePrice,
       },
+      discounts: {
+        enabled: discountsEnabled,
+        allowStacking,
+        maxDiscount,
+        rules: discountRules,
+      },
     });
     alert(isRtl ? "تم الحفظ" : "Saved");
+  };
+
+  // Discount management functions
+  const addDiscountRule = () => {
+    const newRule = {
+      id: Date.now().toString(),
+      name: isRtl ? "خصم جديد" : "New Discount",
+      enabled: true,
+      thresholdType: "pageCount" as const,
+      conditions: {
+        minPages: 50,
+      },
+      discountType: "percentage" as const,
+      discountValue: 10,
+      description: "",
+    };
+    setDiscountRules([...discountRules, newRule]);
+    setEditingRule(newRule.id);
+  };
+
+  const updateDiscountRule = (ruleId: string, updates: any) => {
+    setDiscountRules((rules) =>
+      rules.map((rule) =>
+        rule.id === ruleId ? { ...rule, ...updates } : rule,
+      ),
+    );
+  };
+
+  const deleteDiscountRule = (ruleId: string) => {
+    setDiscountRules((rules) => rules.filter((rule) => rule.id !== ruleId));
+  };
+
+  const toggleDiscountRule = (ruleId: string) => {
+    setDiscountRules((rules) =>
+      rules.map((rule) =>
+        rule.id === ruleId ? { ...rule, enabled: !rule.enabled } : rule,
+      ),
+    );
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -649,7 +728,12 @@ const AdminView: React.FC<AdminViewProps> = ({
                         currentSettings,
                         jobPageCounts,
                       )
-                    : 0;
+                    : {
+                        subtotal: 0,
+                        discounts: [],
+                        totalDiscount: 0,
+                        finalPrice: 0,
+                      };
 
                   return (
                     <div
@@ -702,11 +786,27 @@ const AdminView: React.FC<AdminViewProps> = ({
                                 {group.phoneNumber ||
                                   (isRtl ? "بدون هاتف" : "No Phone")}
                               </p>
-                              {customerTotal > 0 && (
-                                <p className="text-sm font-bold text-green-600 mt-1">
-                                  {isRtl ? "الإجمالي:" : "Total:"}{" "}
-                                  {formatPrice(customerTotal)}
-                                </p>
+                              {customerTotal.finalPrice > 0 && (
+                                <div className="mt-1">
+                                  <p className="text-sm font-bold text-green-600">
+                                    {isRtl ? "الإجمالي:" : "Total:"}{" "}
+                                    {formatPrice(customerTotal.finalPrice)}
+                                  </p>
+                                  {customerTotal.totalDiscount > 0 && (
+                                    <div className="text-xs text-gray-500">
+                                      <span>
+                                        {isRtl ? "المجموع:" : "Subtotal:"}{" "}
+                                        {formatPrice(customerTotal.subtotal)}
+                                      </span>
+                                      <span className="ml-2 text-red-600">
+                                        -{isRtl ? "خصم:" : "Discount:"}{" "}
+                                        {formatPrice(
+                                          customerTotal.totalDiscount,
+                                        )}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </div>
@@ -859,7 +959,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                                                     job,
                                                     currentSettings,
                                                     jobPageCounts[job.id] || 1,
-                                                  ).totalPrice,
+                                                  ).finalPrice,
                                                 )}
                                               </span>
                                             )}
@@ -885,6 +985,24 @@ const AdminView: React.FC<AdminViewProps> = ({
                                                 )}
                                                 /{isRtl ? "صفحة" : "page"}
                                               </span>
+                                              {calculatePrintPrice(
+                                                job,
+                                                currentSettings,
+                                                jobPageCounts[job.id] || 1,
+                                              ).totalDiscount > 0 && (
+                                                <span className="text-red-600">
+                                                  -
+                                                  {isRtl ? "خصم:" : "Discount:"}{" "}
+                                                  {formatPrice(
+                                                    calculatePrintPrice(
+                                                      job,
+                                                      currentSettings,
+                                                      jobPageCounts[job.id] ||
+                                                        1,
+                                                    ).totalDiscount,
+                                                  )}
+                                                </span>
+                                              )}
                                             </div>
                                           )}
                                         </div>
@@ -1104,6 +1222,140 @@ const AdminView: React.FC<AdminViewProps> = ({
               </div>
             </div>
 
+            {/* Discount Settings */}
+            <div className="border-t border-gray-200 pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {isRtl ? "إعدادات الخصومات" : "Discount Settings"}
+                </h3>
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={discountsEnabled}
+                    onChange={(e) => setDiscountsEnabled(e.target.checked)}
+                  />
+                  <div
+                    className={`relative w-11 h-6 transition-colors rounded-full ${
+                      discountsEnabled ? "bg-indigo-600" : "bg-gray-200"
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                        discountsEnabled ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </div>
+                  <span className="ml-3 text-sm font-medium text-gray-700">
+                    {discountsEnabled
+                      ? isRtl
+                        ? "مفعل"
+                        : "Enabled"
+                      : isRtl
+                        ? "معطل"
+                        : "Disabled"}
+                  </span>
+                </label>
+              </div>
+
+              {discountsEnabled && (
+                <div className="space-y-4">
+                  {/* Global Discount Settings */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                          checked={allowStacking}
+                          onChange={(e) => setAllowStacking(e.target.checked)}
+                        />
+                        <span className="ml-2 text-sm text-gray-700">
+                          {isRtl
+                            ? "السماح بتجميع الخصومات"
+                            : "Allow Multiple Discounts"}
+                        </span>
+                      </label>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {isRtl ? "الحد الأقصى للخصم" : "Maximum Discount"}
+                      </label>
+                      <div className="flex items-center">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder={isRtl ? "بدون حد" : "No limit"}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          value={maxDiscount || ""}
+                          onChange={(e) =>
+                            setMaxDiscount(
+                              e.target.value
+                                ? parseFloat(e.target.value)
+                                : null,
+                            )
+                          }
+                        />
+                        <span className="ml-2 text-sm text-gray-500">DZD</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Discount Rules */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-semibold text-gray-800">
+                        {isRtl ? "قواعد الخصم" : "Discount Rules"}
+                      </h4>
+                      <button
+                        onClick={addDiscountRule}
+                        className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition"
+                      >
+                        {isRtl ? "إضافة قاعدة" : "Add Rule"}
+                      </button>
+                    </div>
+
+                    {discountRules.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                        {isRtl
+                          ? "لا توجد قواعد خصم"
+                          : "No discount rules configured"}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {discountRules.map((rule) => (
+                          <div
+                            key={rule.id}
+                            className="border border-gray-200 rounded-lg p-4 bg-white"
+                          >
+                            {editingRule === rule.id ? (
+                              <DiscountRuleEditor
+                                rule={rule}
+                                onUpdate={(updates) =>
+                                  updateDiscountRule(rule.id, updates)
+                                }
+                                onCancel={() => setEditingRule(null)}
+                                isRtl={isRtl}
+                              />
+                            ) : (
+                              <DiscountRuleDisplay
+                                rule={rule}
+                                onEdit={() => setEditingRule(rule.id)}
+                                onToggle={() => toggleDiscountRule(rule.id)}
+                                onDelete={() => deleteDiscountRule(rule.id)}
+                                isRtl={isRtl}
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               onClick={saveSettings}
               className="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 transition shadow-md shadow-indigo-100"
@@ -1112,6 +1364,368 @@ const AdminView: React.FC<AdminViewProps> = ({
             </button>
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+// Discount Rule Editor Component
+const DiscountRuleEditor: React.FC<{
+  rule: any;
+  onUpdate: (updates: any) => void;
+  onCancel: () => void;
+  isRtl: boolean;
+}> = ({ rule, onUpdate, onCancel, isRtl }) => {
+  const [localRule, setLocalRule] = useState(rule);
+
+  const handleSave = () => {
+    onUpdate(localRule);
+    onCancel();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {isRtl ? "اسم القاعدة" : "Rule Name"}
+          </label>
+          <input
+            type="text"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+            value={localRule.name}
+            onChange={(e) =>
+              setLocalRule({ ...localRule, name: e.target.value })
+            }
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {isRtl ? "نوع العتبة" : "Threshold Type"}
+          </label>
+          <select
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+            value={localRule.thresholdType}
+            onChange={(e) =>
+              setLocalRule({ ...localRule, thresholdType: e.target.value })
+            }
+          >
+            <option value="pageCount">
+              {isRtl ? "عدد الصفحات" : "Page Count"}
+            </option>
+            <option value="itemQuantity">
+              {isRtl ? "عدد العناصر" : "Item Quantity"}
+            </option>
+            <option value="orderTotal">
+              {isRtl ? "إجمالي الطلب" : "Order Total"}
+            </option>
+            <option value="mixed">{isRtl ? "مختلط" : "Mixed"}</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Conditions based on threshold type */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {localRule.thresholdType === "pageCount" ||
+        localRule.thresholdType === "mixed" ? (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {isRtl ? "الحد الأدنى للصفحات" : "Min Pages"}
+            </label>
+            <input
+              type="number"
+              min="1"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              value={localRule.conditions.minPages || ""}
+              onChange={(e) =>
+                setLocalRule({
+                  ...localRule,
+                  conditions: {
+                    ...localRule.conditions,
+                    minPages: parseInt(e.target.value) || 0,
+                  },
+                })
+              }
+            />
+          </div>
+        ) : null}
+
+        {localRule.thresholdType === "itemQuantity" ||
+        localRule.thresholdType === "mixed" ? (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {isRtl ? "الحد الأدنى للعناصر" : "Min Items"}
+            </label>
+            <input
+              type="number"
+              min="1"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              value={localRule.conditions.minItems || ""}
+              onChange={(e) =>
+                setLocalRule({
+                  ...localRule,
+                  conditions: {
+                    ...localRule.conditions,
+                    minItems: parseInt(e.target.value) || 0,
+                  },
+                })
+              }
+            />
+          </div>
+        ) : null}
+
+        {localRule.thresholdType === "orderTotal" ||
+        localRule.thresholdType === "mixed" ? (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {isRtl ? "الحد الأدنى للطلب" : "Min Order Total"}
+            </label>
+            <div className="flex items-center">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                value={localRule.conditions.minOrderTotal || ""}
+                onChange={(e) =>
+                  setLocalRule({
+                    ...localRule,
+                    conditions: {
+                      ...localRule.conditions,
+                      minOrderTotal: parseFloat(e.target.value) || 0,
+                    },
+                  })
+                }
+              />
+              <span className="ml-2 text-sm text-gray-500">DZD</span>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {localRule.thresholdType === "mixed" && (
+        <div>
+          <label className="flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              checked={localRule.conditions.requireAll || false}
+              onChange={(e) =>
+                setLocalRule({
+                  ...localRule,
+                  conditions: {
+                    ...localRule.conditions,
+                    requireAll: e.target.checked,
+                  },
+                })
+              }
+            />
+            <span className="ml-2 text-sm text-gray-700">
+              {isRtl ? "تطلب جميع الشروط" : "Require all conditions"}
+            </span>
+          </label>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {isRtl ? "نوع الخصم" : "Discount Type"}
+          </label>
+          <select
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+            value={localRule.discountType}
+            onChange={(e) =>
+              setLocalRule({ ...localRule, discountType: e.target.value })
+            }
+          >
+            <option value="percentage">
+              {isRtl ? "نسبة مئوية" : "Percentage"}
+            </option>
+            <option value="fixedAmount">
+              {isRtl ? "مبلغ ثابت" : "Fixed Amount"}
+            </option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {isRtl ? "قيمة الخصم" : "Discount Value"}
+          </label>
+          <div className="flex items-center">
+            <input
+              type="number"
+              min="0"
+              step={localRule.discountType === "percentage" ? "1" : "0.01"}
+              max={localRule.discountType === "percentage" ? "100" : undefined}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              value={localRule.discountValue}
+              onChange={(e) =>
+                setLocalRule({
+                  ...localRule,
+                  discountValue: parseFloat(e.target.value) || 0,
+                })
+              }
+            />
+            <span className="ml-2 text-sm text-gray-500">
+              {localRule.discountType === "percentage" ? "%" : "DZD"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          {isRtl ? "الوصف (اختياري)" : "Description (optional)"}
+        </label>
+        <textarea
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+          rows={2}
+          value={localRule.description || ""}
+          onChange={(e) =>
+            setLocalRule({ ...localRule, description: e.target.value })
+          }
+          placeholder={isRtl ? "وصف القاعدة..." : "Rule description..."}
+        />
+      </div>
+
+      <div className="flex gap-2 justify-end">
+        <button
+          onClick={onCancel}
+          className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
+        >
+          {isRtl ? "إلغاء" : "Cancel"}
+        </button>
+        <button
+          onClick={handleSave}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+        >
+          {isRtl ? "حفظ" : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Discount Rule Display Component
+const DiscountRuleDisplay: React.FC<{
+  rule: any;
+  onEdit: () => void;
+  onToggle: () => void;
+  onDelete: () => void;
+  isRtl: boolean;
+}> = ({ rule, onEdit, onToggle, onDelete, isRtl }) => {
+  const getThresholdDescription = () => {
+    const { thresholdType, conditions } = rule;
+    const parts = [];
+
+    if (thresholdType === "pageCount" || thresholdType === "mixed") {
+      if (conditions.minPages) {
+        parts.push(
+          `${isRtl ? `${conditions.minPages}+ صفحة` : `${conditions.minPages}+ pages`}`,
+        );
+      }
+    }
+
+    if (thresholdType === "itemQuantity" || thresholdType === "mixed") {
+      if (conditions.minItems) {
+        parts.push(
+          `${isRtl ? `${conditions.minItems}+ عنصر` : `${conditions.minItems}+ items`}`,
+        );
+      }
+    }
+
+    if (thresholdType === "orderTotal" || thresholdType === "mixed") {
+      if (conditions.minOrderTotal) {
+        parts.push(
+          `${isRtl ? `${conditions.minOrderTotal}+ دينار` : `${conditions.minOrderTotal}+ DZD`}`,
+        );
+      }
+    }
+
+    if (thresholdType === "mixed" && conditions.requireAll) {
+      return parts.join(` ${isRtl ? "و" : "and"} `);
+    } else if (thresholdType === "mixed") {
+      return parts.join(` ${isRtl ? "أو" : "or"} `);
+    }
+
+    return parts[0] || "";
+  };
+
+  const getDiscountDescription = () => {
+    if (rule.discountType === "percentage") {
+      return `${rule.discountValue}%`;
+    } else {
+      return `${rule.discountValue} DZD`;
+    }
+  };
+
+  return (
+    <div className="flex items-start justify-between">
+      <div className="flex-1">
+        <div className="flex items-center gap-3">
+          <label className="flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              checked={rule.enabled}
+              onChange={onToggle}
+            />
+          </label>
+          <div>
+            <h5
+              className={`font-semibold ${rule.enabled ? "text-gray-900" : "text-gray-400"}`}
+            >
+              {rule.name}
+            </h5>
+            <p className="text-sm text-gray-600">
+              {getThresholdDescription()} → {getDiscountDescription()}{" "}
+              {isRtl ? "خصم" : "discount"}
+            </p>
+            {rule.description && (
+              <p className="text-xs text-gray-500 mt-1">{rule.description}</p>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-2 ml-4">
+        <button
+          onClick={onEdit}
+          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition"
+          title={isRtl ? "تعديل" : "Edit"}
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+            />
+          </svg>
+        </button>
+        <button
+          onClick={onDelete}
+          className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition"
+          title={isRtl ? "حذف" : "Delete"}
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+            />
+          </svg>
+        </button>
       </div>
     </div>
   );

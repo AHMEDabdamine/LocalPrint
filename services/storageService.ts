@@ -35,7 +35,7 @@ class StorageService {
   async saveJob(
     job: PrintJob,
     file: File,
-    onProgress?: (p: number) => void
+    onProgress?: (p: number) => void,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const formData = new FormData();
@@ -109,7 +109,7 @@ class StorageService {
         .filter((j) => myIds.includes(j.id))
         .sort(
           (a, b) =>
-            new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime()
+            new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime(),
         );
     } catch (e) {
       return [];

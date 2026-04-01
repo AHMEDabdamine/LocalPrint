@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import os from "os";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -29,7 +30,7 @@ if (isDev) {
     res.header("Access-Control-Allow-Origin", "http://localhost:5173");
     res.header(
       "Access-Control-Allow-Methods",
-      "GET, POST, PUT, DELETE, OPTIONS"
+      "GET, POST, PUT, DELETE, OPTIONS",
     );
     res.header("Access-Control-Allow-Headers", "Content-Type");
     if (req.method === "OPTIONS") {
@@ -50,13 +51,28 @@ if (!fs.existsSync(DIST_DIR) && !isDev) {
  */
 let dbCache = {
   jobs: [],
-  settings: { shopName: "PrintShop Hub", logoUrl: null },
+  settings: {
+    shopName: "PrintShop Hub",
+    logoUrl: null,
+    pricing: {
+      colorPerPage: 10.0,
+      blackWhitePerPage: 8.0,
+    },
+    discounts: {
+      enabled: false,
+      allowStacking: false,
+      maxDiscount: null,
+      rules: [],
+    },
+  },
 };
 
 const saveDB = () => {
   try {
     const data = JSON.stringify(dbCache, null, 2);
+    console.log("💾 Saving database with data:", data);
     fs.writeFileSync(DB_FILE, data, "utf-8");
+    console.log("✅ Database saved successfully to:", DB_FILE);
   } catch (err) {
     console.error("❌ Failed to save DB:", err);
   }
@@ -69,6 +85,34 @@ const loadDB = () => {
       if (data.trim()) {
         dbCache = JSON.parse(data);
         console.log("✅ Database loaded successfully");
+
+        // Migration: Ensure pricing and discounts exist
+        let needsSave = false;
+
+        if (!dbCache.settings.pricing) {
+          dbCache.settings.pricing = {
+            colorPerPage: 10.0,
+            blackWhitePerPage: 8.0,
+          };
+          needsSave = true;
+          console.log("🔄 Added default pricing settings");
+        }
+
+        if (!dbCache.settings.discounts) {
+          dbCache.settings.discounts = {
+            enabled: false,
+            allowStacking: false,
+            maxDiscount: null,
+            rules: [],
+          };
+          needsSave = true;
+          console.log("🔄 Added default discount settings");
+        }
+
+        if (needsSave) {
+          saveDB();
+          console.log("✅ Database migration completed");
+        }
       }
     } else {
       saveDB();
@@ -113,6 +157,33 @@ app.get("/api/health", (req, res) => {
     environment: NODE_ENV,
     timestamp: new Date().toISOString(),
   });
+});
+
+// Get local IP address
+app.get("/api/local-ip", (req, res) => {
+  try {
+    const interfaces = os.networkInterfaces();
+    let localIP = "localhost";
+
+    // Find first non-internal IPv4 address
+    for (const interfaceName of Object.keys(interfaces)) {
+      const interfaceInfo = interfaces[interfaceName];
+      if (interfaceInfo) {
+        for (const iface of interfaceInfo) {
+          if (iface.family === "IPv4" && !iface.internal) {
+            localIP = iface.address;
+            break;
+          }
+        }
+        if (localIP !== "localhost") break;
+      }
+    }
+
+    res.status(200).json({ ip: localIP });
+  } catch (error) {
+    console.error("Error getting local IP:", error);
+    res.status(500).json({ ip: "localhost" });
+  }
 });
 
 // Get all jobs
@@ -239,15 +310,60 @@ app.get("/api/files/:filename", (req, res) => {
 
 // Get settings
 app.get("/api/settings", (req, res) => {
+  // Migration: Ensure pricing and discounts exist
+  let needsSave = false;
+
+  if (!dbCache.settings.pricing) {
+    dbCache.settings.pricing = {
+      colorPerPage: 10.0,
+      blackWhitePerPage: 8.0,
+    };
+    needsSave = true;
+    console.log("🔄 Added default pricing settings");
+  }
+
+  if (!dbCache.settings.discounts) {
+    dbCache.settings.discounts = {
+      enabled: false,
+      allowStacking: false,
+      maxDiscount: null,
+      rules: [],
+    };
+    needsSave = true;
+    console.log("🔄 Added default discount settings");
+  }
+
+  if (needsSave) {
+    saveDB();
+    console.log("✅ Database migration completed");
+  }
+
   res.status(200).json(dbCache.settings);
 });
 
 // Update settings
 app.post("/api/settings", (req, res) => {
   try {
-    if (req.body.shopName) {
+    // Update shop name
+    if (req.body.shopName !== undefined) {
       dbCache.settings.shopName = req.body.shopName;
     }
+
+    // Update pricing
+    if (req.body.pricing !== undefined) {
+      dbCache.settings.pricing = req.body.pricing;
+    }
+
+    // Update discounts
+    if (req.body.discounts !== undefined) {
+      dbCache.settings.discounts = req.body.discounts;
+    }
+
+    // Update logo URL if provided
+    if (req.body.logoUrl !== undefined) {
+      dbCache.settings.logoUrl = req.body.logoUrl;
+    }
+
     saveDB();
     res.status(200).json({ success: true, settings: dbCache.settings });
   } catch (err) {
@@ -300,7 +416,7 @@ if (!isDev) {
     express.static(DIST_DIR, {
       maxAge: "1d", // Cache static assets for 1 day
       etag: true,
-    })
+    }),
   );
 }
 

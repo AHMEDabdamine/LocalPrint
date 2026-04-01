@@ -72,55 +72,17 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
 
   const getLocalIP = async (): Promise<string> => {
     try {
-      // Method 1: Use WebRTC to get local IP
-      const rtc = new RTCPeerConnection({ iceServers: [] });
-      rtc.createDataChannel("", { reliable: false });
-      const candidate = await new Promise<RTCIceCandidate>(
-        (resolve, reject) => {
-          rtc.onicecandidate = (event) => {
-            if (event.candidate) {
-              resolve(event.candidate);
-            }
-          };
-          rtc
-            .createOffer()
-            .then((offer) => rtc.setLocalDescription(offer))
-            .catch(reject);
-        },
-      );
-
-      const ipMatch = candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
-      if (ipMatch && ipMatch[1]) {
-        return ipMatch[1];
-      }
+      const res = await fetch("/api/local-ip");
+      if (!res.ok) throw new Error("Server error");
+      const { ip } = await res.json();
+      return ip ?? "localhost";
     } catch (err) {
-      console.log("WebRTC method failed, trying fallback");
-    }
-
-    try {
-      // Method 2: Fallback - try common network IP ranges
+      console.error("Failed to fetch local IP:", err);
+      // Graceful fallback: if the app is already accessed via IP, use that
       const hostname = window.location.hostname;
-      if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-        return hostname;
-      }
-
-      // Method 3: Try to detect from network interfaces (approximation)
-      // This is a simplified approach - in production you might want a more robust solution
-      const possibleIPs = [
-        "192.168.1.90", // From the dev server output
-        "192.168.137.1", // From the dev server output
-        "192.168.0.1",
-        "192.168.1.1",
-      ];
-
-      // Return the first likely candidate or fallback to localhost
-      return possibleIPs[0] || "localhost";
-    } catch (err) {
-      console.error("All IP detection methods failed:", err);
-      return "localhost";
+      return hostname !== "localhost" ? hostname : "localhost";
     }
   };
-
   const downloadQRCode = () => {
     if (qrCodeUrl) {
       const link = document.createElement("a");
