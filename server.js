@@ -3,6 +3,8 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import os from "os";
+import { PDFDocument } from "pdf-lib";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,7 +31,7 @@ if (isDev) {
     res.header("Access-Control-Allow-Origin", "http://localhost:5173");
     res.header(
       "Access-Control-Allow-Methods",
-      "GET, POST, PUT, DELETE, OPTIONS"
+      "GET, POST, PUT, DELETE, OPTIONS",
     );
     res.header("Access-Control-Allow-Headers", "Content-Type");
     if (req.method === "OPTIONS") {
@@ -50,7 +52,11 @@ if (!fs.existsSync(DIST_DIR) && !isDev) {
  */
 let dbCache = {
   jobs: [],
-  settings: { shopName: "PrintShop Hub", logoUrl: null },
+  settings: {
+    shopName: "PrintShop Hub",
+    logoUrl: null,
+    pricing: { colorPerPage: 30.0, blackWhitePerPage: 15.0 },
+  },
 };
 
 const saveDB = () => {
@@ -80,7 +86,84 @@ const loadDB = () => {
   }
 };
 
+/**
+ * PDF Page Count Helper — uses pdf-lib for accurate counting.
+ * Handles encrypted and malformed PDFs gracefully.
+ *
+ * @param {string} filePath - Absolute path to the PDF file on disk.
+ * @returns {Promise<number|null>} Page count, or null if the file cannot be read.
+ */
+const getPdfPageCount = async (filePath) => {
+  try {
+    const fileBuffer = fs.readFileSync(filePath);
+
+    // ignoreEncryption: true  — prevents a crash on password-protected PDFs
+    //   (page count is still readable even for encrypted docs)
+    // updateMetadata: false   — skip rewriting metadata; we only need page count
+    const pdfDoc = await PDFDocument.load(fileBuffer, {
+      ignoreEncryption: true,
+      updateMetadata: false,
+    });
+
+    const pageCount = pdfDoc.getPageCount();
+    console.log(`📄 PDF page count for ${path.basename(filePath)}: ${pageCount}`);
+    return pageCount;
+  } catch (err) {
+    console.error(
+      `❌ Error reading PDF page count for ${path.basename(filePath)}:`,
+      err.message,
+    );
+    return null;
+  }
+};
+
+// Backfill missing pageCount for existing PDF jobs (runs once at startup)
+const backfillPageCounts = async () => {
+  // Ensure dbCache.jobs exists after loadDB()
+  const pdfJobsMissingCount = (dbCache.jobs || []).filter(
+    (j) => j.fileType === "application/pdf" && !j.pageCount,
+  );
+  if (pdfJobsMissingCount.length === 0) {
+    console.log("✅ All PDF jobs already have page counts.");
+    return;
+  }
+
+  console.log(
+    `📚 Backfilling page counts for ${pdfJobsMissingCount.length} PDF job(s)...`,
+  );
+  let changed = false;
+
+  for (const job of pdfJobsMissingCount) {
+    if (!job.serverFileName) {
+      console.warn(`  ⚠️  Job ${job.id} has no serverFileName — skipping.`);
+      continue;
+    }
+    const filePath = path.join(UPLOADS_DIR, job.serverFileName);
+    if (fs.existsSync(filePath)) {
+      const count = await getPdfPageCount(filePath);
+      if (count !== null) {
+        job.pageCount = count;
+        changed = true;
+        console.log(`  ✅ ${job.fileName}: ${count} page(s)`);
+      } else {
+        console.warn(`  ⚠️  Could not count pages for ${job.fileName} — file may be corrupted.`);
+      }
+    } else {
+      console.warn(`  ⚠️  File not found for job ${job.id}: ${job.serverFileName}`);
+    }
+  }
+
+  if (changed) {
+    saveDB();
+    console.log("💾 Page counts saved to database.");
+  }
+};
+
 loadDB();
+// Run backfill after DB is loaded (non-blocking — won't block server startup)
+backfillPageCounts().catch((err) =>
+  console.error("❌ Backfill error:", err),
+);
 
 // Multer configuration
 const storage = multer.diskStorage({
@@ -121,7 +204,7 @@ app.get("/api/jobs", (req, res) => {
 });
 
 // Upload new job
-app.post("/api/upload", upload.single("file"), (req, res) => {
+app.post("/api/upload", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res
@@ -130,12 +213,21 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
     }
 
     const metadata = JSON.parse(req.body.metadata);
+    const filePath = path.join(UPLOADS_DIR, req.file.filename);
+
+    // Get page count for PDF files
+    let pageCount = null;
+    if (req.file.mimetype === "application/pdf") {
+      pageCount = await getPdfPageCount(filePath);
+    }
+
     const newJob = {
       ...metadata,
       serverFileName: req.file.filename,
       uploadDate: new Date().toISOString(),
       fileSize: req.file.size,
       fileType: req.file.mimetype,
+      pageCount: pageCount,
     };
 
     dbCache.jobs.push(newJob);
@@ -148,7 +240,7 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
 });
 
 // Update job file
-app.post("/api/jobs/:id/file", upload.single("file"), (req, res) => {
+app.post("/api/jobs/:id/file", upload.single("file"), async (req, res) => {
   try {
     const jobId = req.params.id;
     const job = dbCache.jobs.find((j) => j.id === jobId);
@@ -174,10 +266,18 @@ app.post("/api/jobs/:id/file", upload.single("file"), (req, res) => {
       }
     }
 
+    // Get page count for PDF files
+    let pageCount = null;
+    if (req.file.mimetype === "application/pdf") {
+      const filePath = path.join(UPLOADS_DIR, req.file.filename);
+      pageCount = await getPdfPageCount(filePath);
+    }
+
     // Update job
     job.serverFileName = req.file.filename;
     job.fileSize = req.file.size;
     job.fileType = req.file.mimetype;
+    job.pageCount = pageCount;
 
     saveDB();
     res.status(200).json({ success: true, job });
@@ -200,6 +300,34 @@ app.put("/api/jobs/:id/status", (req, res) => {
     res.status(404).json({ success: false, error: "Job not found" });
   }
 });
+
+// Update job print preferences (colorMode, copies)
+app.put("/api/jobs/:id/preferences", (req, res) => {
+  const job = dbCache.jobs.find((j) => j.id === req.params.id);
+  if (!job) {
+    return res.status(404).json({ success: false, error: "Job not found" });
+  }
+
+  const { colorMode, copies } = req.body;
+
+  if (!job.printPreferences) {
+    job.printPreferences = { colorMode: "color", copies: 1 };
+  }
+
+  if (colorMode === "color" || colorMode === "blackWhite") {
+    job.printPreferences.colorMode = colorMode;
+  }
+
+  const parsedCopies = parseInt(copies, 10);
+  if (!isNaN(parsedCopies) && parsedCopies >= 1 && parsedCopies <= 100) {
+    job.printPreferences.copies = parsedCopies;
+  }
+
+  saveDB();
+  console.log(`✏️  Updated preferences for job ${job.id}: ${job.printPreferences.colorMode}, ${job.printPreferences.copies} cop(ies)`);
+  res.status(200).json({ success: true, job });
+});
+
 
 // Delete job
 app.delete("/api/jobs/:id", (req, res) => {
@@ -245,8 +373,20 @@ app.get("/api/settings", (req, res) => {
 // Update settings
 app.post("/api/settings", (req, res) => {
   try {
-    if (req.body.shopName) {
+    if (req.body.shopName !== undefined) {
       dbCache.settings.shopName = req.body.shopName;
+    }
+    if (req.body.pricing && typeof req.body.pricing === "object") {
+      dbCache.settings.pricing = {
+        colorPerPage:
+          parseFloat(req.body.pricing.colorPerPage) ||
+          dbCache.settings.pricing?.colorPerPage ||
+          30.0,
+        blackWhitePerPage:
+          parseFloat(req.body.pricing.blackWhitePerPage) ||
+          dbCache.settings.pricing?.blackWhitePerPage ||
+          15.0,
+      };
     }
     saveDB();
     res.status(200).json({ success: true, settings: dbCache.settings });
@@ -290,6 +430,99 @@ app.post("/api/settings/logo", upload.single("logo"), (req, res) => {
   }
 });
 
+// Get local IP address
+app.get("/api/local-ip", (req, res) => {
+  try {
+    const interfaces = os.networkInterfaces();
+    let ips = [];
+
+    // Collect all non-internal IPv4 addresses with interface names
+    for (const name of Object.keys(interfaces)) {
+      const networkInterface = interfaces[name];
+      if (networkInterface) {
+        for (const interfaceInfo of networkInterface) {
+          if (interfaceInfo.family === "IPv4" && !interfaceInfo.internal) {
+            ips.push({
+              address: interfaceInfo.address,
+              interface: name,
+              isWifi:
+                name.toLowerCase().includes("wi-fi") ||
+                name.toLowerCase().includes("wlan"),
+              isEthernet:
+                name.toLowerCase().includes("ethernet") ||
+                name.toLowerCase().includes("eth"),
+            });
+          }
+        }
+      }
+    }
+
+    console.log("🔍 Available network interfaces:", ips);
+
+    let selectedIP = null;
+
+    // Priority 1: Prefer IPs with common gateway patterns (.1.90, .1.100, .0.1, .1.1)
+    const commonPatterns = [".1.90", ".1.100", ".0.1", ".1.1"];
+    for (const pattern of commonPatterns) {
+      const patternIP = ips.find((ip) => ip.address.endsWith(pattern));
+      if (patternIP) {
+        selectedIP = patternIP.address;
+        console.log("✅ Selected common pattern IP:", selectedIP);
+        break;
+      }
+    }
+
+    // Priority 2: Look for WiFi interfaces (most common for mobile access)
+    if (!selectedIP) {
+      const wifiIP = ips.find(
+        (ip) => ip.isWifi && ip.address.startsWith("192.168."),
+      );
+      if (wifiIP) {
+        selectedIP = wifiIP.address;
+        console.log("✅ Selected WiFi IP:", selectedIP);
+      }
+    }
+
+    // Priority 3: Look for Ethernet interfaces
+    if (!selectedIP) {
+      const ethernetIP = ips.find(
+        (ip) => ip.isEthernet && ip.address.startsWith("192.168."),
+      );
+      if (ethernetIP) {
+        selectedIP = ethernetIP.address;
+        console.log("✅ Selected Ethernet IP:", selectedIP);
+      }
+    }
+
+    // Priority 4: Any 192.168.x.x address
+    if (!selectedIP) {
+      const lanIP = ips.find((ip) => ip.address.startsWith("192.168."));
+      if (lanIP) {
+        selectedIP = lanIP.address;
+        console.log("✅ Selected first LAN IP:", selectedIP);
+      }
+    }
+
+    // Priority 5: Any non-internal IP
+    if (!selectedIP && ips.length > 0) {
+      selectedIP = ips[0].address;
+      console.log("✅ Selected first available IP:", selectedIP);
+    }
+
+    // Fallback to localhost
+    if (!selectedIP) {
+      selectedIP = "localhost";
+      console.log("⚠️  Fallback to localhost");
+    }
+
+    console.log("🌐 Final selected IP:", selectedIP);
+    res.status(200).json({ ip: selectedIP });
+  } catch (err) {
+    console.error("❌ Error getting local IP:", err);
+    res.status(500).json({ error: "Failed to get local IP" });
+  }
+});
+
 /**
  * STATIC FILE SERVING & SPA ROUTING
  */
@@ -300,7 +533,7 @@ if (!isDev) {
     express.static(DIST_DIR, {
       maxAge: "1d", // Cache static assets for 1 day
       etag: true,
-    })
+    }),
   );
 }
 

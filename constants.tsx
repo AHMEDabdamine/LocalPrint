@@ -27,7 +27,7 @@ export const TRANSLATIONS: Translations = {
   successMsg: { en: 'File uploaded successfully!', ar: 'تم رفع الملف بنجاح!' },
   errorMsg: { en: 'Something went wrong. Please try again.', ar: 'حدث خطأ ما. يرجى المحاولة مرة أخرى.' },
   dragDrop: { en: 'Drag and drop or click to upload', ar: 'اسحب وأفلت أو انقر للرفع' },
-  fileLimit: { en: 'Supported: PDF, DOCX, JPG, PNG', ar: 'المدعومة: PDF, DOCX, JPG, PNG' },
+  fileLimit: { en: 'Supported: PDF, DOCX, Excel, PPT, Image', ar: 'المدعومة: PDF, Word, Excel, PowerPoint, صور' },
   settings: { en: 'Settings', ar: 'الإعدادات' },
   shopName: { en: 'Shop Name', ar: 'اسم المحل' },
   shopLogo: { en: 'Shop Logo', ar: 'شعار المحل' },
@@ -45,6 +45,10 @@ export const TRANSLATIONS: Translations = {
 export const ALLOWED_TYPES = [
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-powerpoint',
   'image/jpeg',
   'image/png'
 ];

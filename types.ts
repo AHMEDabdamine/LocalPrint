@@ -13,6 +13,7 @@ export interface PrintJob {
   fileSize: number;
   uploadDate: string;
   status: PrintStatus;
+  pageCount?: number; // Number of pages for PDF files
   fileBlob?: Blob; // In a real app, this is a URL/Path on server
   printPreferences?: {
     colorMode: "color" | "blackWhite";

@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Language, PrintJob, PrintStatus } from "../types";
+import { Language, PrintJob, PrintStatus, ShopSettings } from "../types";
 import { TRANSLATIONS, ALLOWED_TYPES } from "../constants";
 import { storageService } from "../services/storageService";
+import { calculatePrintPrice, getActualPageCount, formatPrice } from "../utils/pricingUtils";
 import QRCode from "qrcode";
 
 interface UploadViewProps {
@@ -40,11 +41,78 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
   const [recentJobs, setRecentJobs] = useState<PrintJob[]>([]);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [showQrCode, setShowQrCode] = useState(false);
+  
+  // Preview States
+  const [previewJobUrl, setPreviewJobUrl] = useState<string | null>(null);
+  const [previewFileType, setPreviewFileType] = useState<string | null>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Pricing & Pages States
+  const [shopSettings, setShopSettings] = useState<ShopSettings | null>(null);
+  const [jobPageCounts, setJobPageCounts] = useState<{[jobId: string]: number}>({});
+
   useEffect(() => {
-    storageService.getMyRecentJobs().then(setRecentJobs);
+    const fetchData = async () => {
+      const [jobs, settings] = await Promise.all([
+        storageService.getMyRecentJobs(),
+        storageService.getSettings()
+      ]);
+      setRecentJobs(jobs);
+      setShopSettings(settings);
+
+      // Async page counting for pricing display
+      if (settings?.pricing) {
+        const counts: {[jobId: string]: number} = {};
+        for (const job of jobs) {
+          if (job.pageCount && job.pageCount > 0) {
+            counts[job.id] = job.pageCount;
+            continue;
+          }
+          try {
+            const url = await storageService.getFileUrl(job.id);
+            if (url) {
+              const response = await fetch(url);
+              const blob = await response.blob();
+              const file = new File([blob], job.fileName, { type: job.fileType });
+              counts[job.id] = await getActualPageCount(file);
+            } else {
+              counts[job.id] = 1;
+            }
+          } catch (e) {
+            counts[job.id] = 1;
+          }
+        }
+        setJobPageCounts(counts);
+      }
+    };
+    fetchData();
   }, [overallSuccess]);
+
+  const handleCancelJob = async (id: string) => {
+    if (window.confirm(isRtl ? "هل أنت متأكد من إلغاء هذه الطباعة؟" : "Are you sure you want to cancel this print job?")) {
+      try {
+        await storageService.deleteJob(id);
+        setRecentJobs(prev => prev.filter(job => job.id !== id));
+      } catch (err) {
+        console.error("Failed to cancel job", err);
+      }
+    }
+  };
+
+  const handlePreviewJob = async (job: PrintJob) => {
+    try {
+      const url = await storageService.getFileUrl(job.id);
+      if (url) {
+        setPreviewJobUrl(url);
+        setPreviewFileType(job.fileType);
+        setShowPreviewModal(true);
+      }
+    } catch (err) {
+      console.error("Failed to fetch preview", err);
+    }
+  };
 
   const generateQRCode = async () => {
     try {
@@ -72,52 +140,18 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
 
   const getLocalIP = async (): Promise<string> => {
     try {
-      // Method 1: Use WebRTC to get local IP
-      const rtc = new RTCPeerConnection({ iceServers: [] });
-      rtc.createDataChannel("", { reliable: false });
-      const candidate = await new Promise<RTCIceCandidate>(
-        (resolve, reject) => {
-          rtc.onicecandidate = (event) => {
-            if (event.candidate) {
-              resolve(event.candidate);
-            }
-          };
-          rtc
-            .createOffer()
-            .then((offer) => rtc.setLocalDescription(offer))
-            .catch(reject);
-        },
+      const response = await fetch("/api/local-ip");
+      if (!response.ok) {
+        throw new Error("Failed to fetch local IP");
+      }
+      const data = await response.json();
+      return data.ip;
+    } catch (err) {
+      console.error(
+        "Failed to get local IP from API, falling back to hostname:",
+        err,
       );
-
-      const ipMatch = candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
-      if (ipMatch && ipMatch[1]) {
-        return ipMatch[1];
-      }
-    } catch (err) {
-      console.log("WebRTC method failed, trying fallback");
-    }
-
-    try {
-      // Method 2: Fallback - try common network IP ranges
-      const hostname = window.location.hostname;
-      if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-        return hostname;
-      }
-
-      // Method 3: Try to detect from network interfaces (approximation)
-      // This is a simplified approach - in production you might want a more robust solution
-      const possibleIPs = [
-        "192.168.1.90", // From the dev server output
-        "192.168.137.1", // From the dev server output
-        "192.168.0.1",
-        "192.168.1.1",
-      ];
-
-      // Return the first likely candidate or fallback to localhost
-      return possibleIPs[0] || "localhost";
-    } catch (err) {
-      console.error("All IP detection methods failed:", err);
-      return "localhost";
+      return window.location.hostname;
     }
   };
 
@@ -320,7 +354,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100 space-y-6 mb-12"
+        className="bg-white p-6 sm:p-10 rounded-[2rem] shadow-2xl shadow-indigo-100/40 border border-white space-y-8 mb-12"
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -333,7 +367,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
             <input
               type="text"
               disabled={isUploading}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition disabled:bg-gray-50"
+              className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all disabled:opacity-50"
               value={formData.name}
               onChange={(e) =>
                 setFormData({ ...formData, name: e.target.value })
@@ -352,7 +386,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
             <input
               type="tel"
               disabled={isUploading}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition disabled:bg-gray-50"
+              className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all disabled:opacity-50"
               value={formData.phone}
               onChange={(e) =>
                 setFormData({ ...formData, phone: e.target.value })
@@ -368,7 +402,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
           </label>
           <textarea
             disabled={isUploading}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition h-20 resize-none disabled:bg-gray-50"
+            className="w-full px-5 py-4 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all h-24 resize-none disabled:opacity-50"
             value={formData.notes}
             onChange={(e) =>
               setFormData({ ...formData, notes: e.target.value })
@@ -382,8 +416,8 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
         </div>
 
         {/* Print Preferences Section */}
-        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-          <label className="block text-sm font-semibold text-gray-700 mb-3">
+        <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100">
+          <label className="block text-sm font-semibold text-gray-800 mb-4">
             {isRtl ? "تفضيلات الطباعة" : "Print Preferences"}
           </label>
 
@@ -403,11 +437,10 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
                       colorMode: "color",
                     })
                   }
-                  className={`flex-1 px-3 py-2 text-sm font-medium rounded-md border transition ${
-                    printPreferences.colorMode === "color"
-                      ? "bg-indigo-600 text-white border-indigo-600"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  className={`flex-1 px-3 py-2 text-sm font-medium rounded-md border transition ${printPreferences.colorMode === "color"
+                    ? "bg-indigo-600 text-white border-indigo-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   {isRtl ? "ملون" : "Color"}
                 </button>
@@ -420,11 +453,10 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
                       colorMode: "blackWhite",
                     })
                   }
-                  className={`flex-1 px-3 py-2 text-sm font-medium rounded-md border transition ${
-                    printPreferences.colorMode === "blackWhite"
-                      ? "bg-indigo-600 text-white border-indigo-600"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  className={`flex-1 px-3 py-2 text-sm font-medium rounded-md border transition ${printPreferences.colorMode === "blackWhite"
+                    ? "bg-indigo-600 text-white border-indigo-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   {isRtl ? "أبيض وأسود" : "B&W"}
                 </button>
@@ -506,65 +538,16 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
             </div>
           </div>
 
-          {/* Quick Options */}
-          <div className="mt-3 pt-3 border-t border-gray-200">
-            <p className="text-xs text-gray-500 mb-2">
-              {isRtl ? "خيارات سريعة:" : "Quick options:"}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={isUploading}
-                onClick={() =>
-                  setPrintPreferences({ colorMode: "blackWhite", copies: 1 })
-                }
-                className="px-2 py-1 text-xs bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isRtl ? "أبيض وأسود، نسخة واحدة" : "B&W, 1 copy"}
-              </button>
-              <button
-                type="button"
-                disabled={isUploading}
-                onClick={() =>
-                  setPrintPreferences({ colorMode: "color", copies: 1 })
-                }
-                className="px-2 py-1 text-xs bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isRtl ? "ملون، نسخة واحدة" : "Color, 1 copy"}
-              </button>
-              <button
-                type="button"
-                disabled={isUploading}
-                onClick={() =>
-                  setPrintPreferences({ colorMode: "blackWhite", copies: 2 })
-                }
-                className="px-2 py-1 text-xs bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isRtl ? "أبيض وأسود، نسختان" : "B&W, 2 copies"}
-              </button>
-              <button
-                type="button"
-                disabled={isUploading}
-                onClick={() =>
-                  setPrintPreferences({ colorMode: "color", copies: 2 })
-                }
-                className="px-2 py-1 text-xs bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isRtl ? "ملون، نسختان" : "Color, 2 copies"}
-              </button>
-            </div>
-          </div>
         </div>
 
         <div className="relative">
-          <label className="block text-sm font-semibold text-gray-700 mb-1">
+          <label className="block text-sm font-semibold text-gray-800 mb-2">
             {t("selectFile")}
           </label>
           <div
             onClick={() => !isUploading && fileInputRef.current?.click()}
-            className={`border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50 transition ${
-              isUploading ? "opacity-50 cursor-not-allowed" : ""
-            }`}
+            className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-200 ${isUploading ? "opacity-50 cursor-not-allowed border-gray-200" : "border-indigo-200 bg-indigo-50/30 hover:bg-indigo-50 hover:border-indigo-400 hover:shadow-md"
+              }`}
           >
             <input
               type="file"
@@ -572,7 +555,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
               onChange={handleFileChange}
               className="hidden"
               multiple
-              accept=".pdf,.docx,.jpg,.png,image/jpeg,image/png"
+              accept=".pdf,.docx,.xlsx,.xls,.ppt,.pptx,.jpg,.png,image/jpeg,image/png"
             />
             <div className="flex flex-col items-center">
               <svg
@@ -705,7 +688,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
         <button
           type="submit"
           disabled={isUploading || selectedFiles.length === 0}
-          className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 disabled:bg-gray-300 transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-2"
+          className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 transition-all shadow-xl shadow-indigo-600/20 active:scale-[0.98] flex items-center justify-center gap-2 text-lg"
         >
           {isUploading ? (
             <svg
@@ -764,11 +747,10 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
               >
                 <div className="flex items-center gap-4">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      job.status === PrintStatus.PRINTED
-                        ? "bg-green-100 text-green-600"
-                        : "bg-yellow-100 text-yellow-600"
-                    }`}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center ${job.status === PrintStatus.PRINTED
+                      ? "bg-green-100 text-green-600"
+                      : "bg-yellow-100 text-yellow-600"
+                      }`}
                   >
                     {job.status === PrintStatus.PRINTED ? (
                       <svg
@@ -812,22 +794,65 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
                     </p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end">
-                  <span
-                    className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                      job.status === PrintStatus.PRINTED
+                <div className="flex flex-col items-end gap-3">
+                  <div className="flex items-center gap-3">
+                    {shopSettings?.pricing && (
+                      <span className="text-sm font-bold text-green-600 bg-green-50 px-2.5 py-0.5 rounded-md border border-green-100 whitespace-nowrap">
+                        {formatPrice(calculatePrintPrice(job, shopSettings, jobPageCounts[job.id] || 1).totalPrice)}
+                      </span>
+                    )}
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${job.status === PrintStatus.PRINTED
                         ? "bg-green-100 text-green-700"
                         : "bg-yellow-100 text-yellow-700"
-                    }`}
-                  >
-                    {job.status === PrintStatus.PRINTED
-                      ? t("printed")
-                      : t("pending")}
-                  </span>
+                        }`}
+                    >
+                      {job.status === PrintStatus.PRINTED
+                        ? t("printed")
+                        : t("pending")}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handlePreviewJob(job)}
+                      title={isRtl ? "معاينة" : "Preview"}
+                      className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition tooltip-container shadow-sm"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    </button>
+                    {job.status === PrintStatus.PENDING && (
+                      <button
+                        type="button"
+                        onClick={() => handleCancelJob(job.id)}
+                        title={isRtl ? "إلغاء طباعة" : "Cancel print"}
+                        className="p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition shadow-sm"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
+          {shopSettings?.pricing && (
+            <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 flex items-start gap-3 mt-4">
+              <svg className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-xs text-blue-700 font-medium">
+                {isRtl 
+                  ? "ملاحظة: السعر المعروض تقريبي. قد يتغير السعر النهائي حسب إعدادات المتجر الفعلية وحجم وألوان المستند النهائية التي يتم طباعتها."
+                  : "Note: The estimated price is approximate. The final price may change slightly depending on the exact dimensions, color ink coverage, and store verification."}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -900,6 +925,65 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
                 </svg>
                 {isRtl ? "تحميل رمز QR" : "Download QR Code"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Preview Modal */}
+      {showPreviewModal && previewJobUrl && (
+        <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-8 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden relative border border-gray-100">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h3 className="text-xl font-bold text-gray-900">
+                {isRtl ? "معاينة الملف" : "File Preview"}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowPreviewModal(false);
+                  setPreviewJobUrl(null);
+                  setPreviewFileType(null);
+                }}
+                className="text-gray-400 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 transition-colors rounded-full p-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body / Viewer */}
+            <div className="flex-1 bg-gray-100 overflow-hidden relative flex items-center justify-center">
+              {previewFileType?.startsWith("image/") ? (
+                <img
+                  src={previewJobUrl}
+                  alt="Preview"
+                  className="max-w-full max-h-full object-contain p-4 drop-shadow-xl"
+                />
+              ) : previewFileType === "application/pdf" ? (
+                <iframe
+                  src={`${previewJobUrl}#view=FitH`}
+                  className="w-full h-full border-0 bg-transparent"
+                  title="PDF Preview"
+                />
+              ) : (
+                <div className="text-center p-8 bg-white m-8 rounded-xl shadow-sm border border-gray-100 max-w-sm">
+                  <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h4 className="text-lg font-bold text-gray-900 mb-2">
+                    {isRtl ? "المعاينة غير مدعومة" : "Preview Not Supported"}
+                  </h4>
+                  <p className="text-sm text-gray-500">
+                    {isRtl 
+                      ? "لا يمكن معاينة مستندات Office مباشرة على الشبكة المحلية المحمية. سيتم طباعتها بشكل صحيح." 
+                      : "Office documents cannot be previewed natively over protected local networks. They will print correctly."}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>

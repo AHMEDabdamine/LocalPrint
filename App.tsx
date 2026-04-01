@@ -198,8 +198,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <nav className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col antialiased selection:bg-indigo-100 selection:text-indigo-900">
+      <nav className="bg-white/80 backdrop-blur-xl border-b border-gray-100/50 px-6 py-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white overflow-hidden shadow-sm">
             {settings.logoUrl ? (
@@ -218,76 +218,18 @@ const App: React.FC = () => {
               </svg>
             )}
           </div>
-          <div className="flex flex-col">
+          <div className="flex flex-col justify-center">
             <span className="text-xl font-bold tracking-tight text-gray-900 truncate max-w-[150px] sm:max-w-[300px]">
               {settings.shopName || TRANSLATIONS.appTitle[lang]}
             </span>
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              <svg
-                className="w-3 h-3"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                ></path>
-              </svg>
-              <span>
-                {isAdmin || currentHash === "#admin"
-                  ? lang === "ar"
-                    ? "لوحة التحكم"
-                    : "Admin Panel"
-                  : lang === "ar"
-                    ? "صفحة الرفع"
-                    : "Upload Page"}
-              </span>
-            </div>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg text-xs text-gray-600">
-            <svg
-              className="w-3 h-3"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              ></path>
-            </svg>
-            <span>
-              {isAdmin || currentHash === "#admin"
-                ? lang === "ar"
-                  ? "وضع المشرف"
-                  : "Admin Mode"
-                : lang === "ar"
-                  ? "وضع العميل"
-                  : "Client Mode"}
-            </span>
-          </div>
-          <div className="hidden lg:flex items-center gap-1 px-2 py-1 bg-blue-50 rounded-md text-xs text-blue-600">
-            <kbd className="px-1 py-0.5 bg-white rounded border border-blue-200 font-mono text-[10px]">
-              Ctrl
-            </kbd>
-            <span>+</span>
-            <kbd className="px-1 py-0.5 bg-white rounded border border-blue-200 font-mono text-[10px]">
-              K
-            </kbd>
-            <span className="ml-1">{lang === "ar" ? "للوحة" : "Admin"}</span>
-          </div>
           <LanguageToggle currentLang={lang} onToggle={setLang} />
           <button
             onClick={handleToggleMode}
-            className="text-sm font-medium text-gray-600 hover:text-indigo-600 transition flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-indigo-50 border border-gray-200"
+            className="text-sm font-medium text-gray-700 hover:text-indigo-600 transition-all flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-indigo-50 hover:shadow-sm border border-transparent hover:border-indigo-100 active:scale-95"
           >
             {isAdmin ? (
               <>

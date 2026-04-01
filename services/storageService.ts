@@ -135,6 +135,17 @@ class StorageService {
     });
   }
 
+  async updateJobPreferences(
+    id: string,
+    preferences: { colorMode: "color" | "blackWhite"; copies: number },
+  ): Promise<void> {
+    await this.safeFetch(`/api/jobs/${id}/preferences`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(preferences),
+    });
+  }
+
   async deleteJob(id: string): Promise<void> {
     await this.safeFetch(`/api/jobs/${id}`, { method: "DELETE" });
     const myJobs = this.getMyJobIds().filter((mid) => mid !== id);
@@ -147,6 +158,13 @@ class StorageService {
       return {
         shopName: settings?.shopName || "PrintShop Hub",
         logoUrl: settings?.logoUrl || null,
+        pricing: settings?.pricing
+          ? {
+              colorPerPage: Number(settings.pricing.colorPerPage) || 30.0,
+              blackWhitePerPage:
+                Number(settings.pricing.blackWhitePerPage) || 15.0,
+            }
+          : undefined,
       };
     } catch (e) {
       return { shopName: "PrintShop Hub", logoUrl: null };

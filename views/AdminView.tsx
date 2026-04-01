@@ -67,6 +67,13 @@ const AdminView: React.FC<AdminViewProps> = ({
     [jobId: string]: number;
   }>({});
 
+  // Tracks which job's copies stepper is open
+  const [editingCopiesJobId, setEditingCopiesJobId] = useState<string | null>(null);
+  // Tracks which job is currently saving preferences (shows spinner)
+  const [savingPrefsJobId, setSavingPrefsJobId] = useState<string | null>(null);
+  // Local copies value while editing
+  const [editingCopiesValue, setEditingCopiesValue] = useState<number>(1);
+
   useEffect(() => {
     loadJobs();
   }, []);
@@ -84,9 +91,15 @@ const AdminView: React.FC<AdminViewProps> = ({
     const data = await storageService.getMetadata();
     const grouped = data.reduce(
       (acc: { [key: string]: CustomerGroup }, job) => {
-        const name = job.customerName || "";
-        const phone = job.phoneNumber || "";
-        const key = `${name}-${phone}` || "anonymous-group";
+        const name = job.customerName?.trim() || "";
+        const phone = job.phoneNumber?.trim() || "";
+        
+        let key = `${name}-${phone}`;
+        if (!name && !phone) {
+           // Group anonymous files by the exact minute they were uploaded
+           const timeKey = new Date(job.uploadDate).toISOString().slice(0, 16);
+           key = `anon-${timeKey}`;
+        }
 
         if (!acc[key]) {
           acc[key] = {
@@ -128,8 +141,19 @@ const AdminView: React.FC<AdminViewProps> = ({
   const countPagesForAllJobs = async (groups: CustomerGroup[]) => {
     const pageCounts: { [jobId: string]: number } = {};
 
+    // Pre-seed with server-provided page counts (already accurate for PDFs)
     for (const group of groups) {
       for (const job of group.jobs) {
+        if (job.pageCount && job.pageCount > 0) {
+          pageCounts[job.id] = job.pageCount;
+        }
+      }
+    }
+
+    // Only fetch & count client-side for jobs without a server page count
+    for (const group of groups) {
+      for (const job of group.jobs) {
+        if (pageCounts[job.id]) continue; // already have it
         try {
           const url = await storageService.getFileUrl(job.id);
           if (url) {
@@ -353,6 +377,71 @@ const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
+  // Toggle color mode for a job inline
+  const handleToggleColorMode = async (job: PrintJob) => {
+    if (savingPrefsJobId === job.id) return;
+    const newMode =
+      job.printPreferences?.colorMode === "blackWhite" ? "color" : "blackWhite";
+    const newCopies = job.printPreferences?.copies || 1;
+    setSavingPrefsJobId(job.id);
+    try {
+      await storageService.updateJobPreferences(job.id, {
+        colorMode: newMode,
+        copies: newCopies,
+      });
+      // Optimistically update local state
+      setGroups((prev) =>
+        prev.map((g) => ({
+          ...g,
+          jobs: g.jobs.map((j) =>
+            j.id === job.id
+              ? {
+                  ...j,
+                  printPreferences: { colorMode: newMode, copies: newCopies },
+                }
+              : j,
+          ),
+        })),
+      );
+    } catch (err) {
+      console.error("Failed to update color mode", err);
+    } finally {
+      setSavingPrefsJobId(null);
+    }
+  };
+
+  // Save updated copies count for a job
+  const handleSaveCopies = async (job: PrintJob, copies: number) => {
+    if (savingPrefsJobId === job.id) return;
+    const safeCopies = Math.max(1, Math.min(100, copies));
+    const colorMode = job.printPreferences?.colorMode || "color";
+    setSavingPrefsJobId(job.id);
+    setEditingCopiesJobId(null);
+    try {
+      await storageService.updateJobPreferences(job.id, {
+        colorMode,
+        copies: safeCopies,
+      });
+      setGroups((prev) =>
+        prev.map((g) => ({
+          ...g,
+          jobs: g.jobs.map((j) =>
+            j.id === job.id
+              ? {
+                  ...j,
+                  printPreferences: { colorMode, copies: safeCopies },
+                }
+              : j,
+          ),
+        })),
+      );
+    } catch (err) {
+      console.error("Failed to update copies", err);
+    } finally {
+      setSavingPrefsJobId(null);
+    }
+  };
+
   const saveSettings = async () => {
     await storageService.saveSettings({
       shopName,
@@ -397,11 +486,14 @@ const AdminView: React.FC<AdminViewProps> = ({
     return filename.split(".").pop()?.toUpperCase() || "";
   };
 
-  const isWordFile = (fileType: string) => {
+  const isOfficeFile = (fileType: string) => {
     return (
-      fileType ===
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-      fileType === "application/msword"
+      fileType.includes("wordprocessingml.document") ||
+      fileType.includes("msword") ||
+      fileType.includes("spreadsheetml.sheet") ||
+      fileType.includes("ms-excel") ||
+      fileType.includes("presentationml.presentation") ||
+      fileType.includes("ms-powerpoint")
     );
   };
 
@@ -598,7 +690,7 @@ const AdminView: React.FC<AdminViewProps> = ({
         </div>
       </div>
 
-      <div className="flex border-b border-gray-200 mb-6 gap-6">
+      <div className="flex border-b border-gray-100 mb-8 gap-8">
         <button
           onClick={() => setActiveTab("jobs")}
           className={`pb-4 px-2 text-sm font-semibold transition-all ${
@@ -654,9 +746,9 @@ const AdminView: React.FC<AdminViewProps> = ({
                   return (
                     <div
                       key={group.key}
-                      className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden"
+                      className="bg-white rounded-3xl shadow-xl shadow-indigo-100/40 border border-white overflow-hidden mb-6 transition-all"
                     >
-                      <div className="flex items-center border-b border-gray-100 bg-white group/header">
+                      <div className="flex items-center border-b border-gray-50 bg-white group/header">
                         <div className="px-4 py-4 flex items-center">
                           <input
                             type="checkbox"
@@ -702,15 +794,14 @@ const AdminView: React.FC<AdminViewProps> = ({
                                 {group.phoneNumber ||
                                   (isRtl ? "بدون هاتف" : "No Phone")}
                               </p>
-                              {customerTotal > 0 && (
-                                <p className="text-sm font-bold text-green-600 mt-1">
-                                  {isRtl ? "الإجمالي:" : "Total:"}{" "}
-                                  {formatPrice(customerTotal)}
-                                </p>
-                              )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-3 pr-4">
+                            {customerTotal > 0 && (
+                              <span className="text-sm font-bold text-green-700 bg-green-100/50 px-3 py-1 rounded-full border border-green-200/50 shadow-sm whitespace-nowrap">
+                                {formatPrice(customerTotal)}
+                              </span>
+                            )}
                             <span
                               className={`px-3 py-1 text-xs font-bold rounded-full ${
                                 pendingCount > 0
@@ -739,11 +830,11 @@ const AdminView: React.FC<AdminViewProps> = ({
                         </button>
                       </div>
                       {isExpanded && (
-                        <div className="border-t border-gray-100 bg-gray-50/50 overflow-x-auto">
+                        <div className="bg-gray-50/30 overflow-x-auto">
                           <table className="w-full text-left border-collapse">
-                            <thead className="bg-gray-50/80 border-b border-gray-200">
+                            <thead className="bg-[#F8FAFC] border-b border-gray-100">
                               <tr>
-                                <th className="px-4 py-3 w-10">
+                                <th className="px-4 py-4 w-10">
                                   <input
                                     type="checkbox"
                                     className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
@@ -756,21 +847,19 @@ const AdminView: React.FC<AdminViewProps> = ({
                                     }
                                   />
                                 </th>
-                                <th
-                                  className={`px-6 py-3 text-xs font-semibold text-gray-500 uppercase ${
-                                    isRtl ? "text-right" : ""
-                                  }`}
-                                >
+                                <th className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}>
                                   {t("fileName")}
                                 </th>
-                                <th
-                                  className={`px-6 py-3 text-xs font-semibold text-gray-500 uppercase ${
-                                    isRtl ? "text-right" : ""
-                                  }`}
-                                >
+                                <th className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}>
+                                  {isRtl ? "الإعدادات" : "Settings"}
+                                </th>
+                                <th className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}>
+                                  {isRtl ? "التكلفة" : "Cost"}
+                                </th>
+                                <th className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}>
                                   {t("status")}
                                 </th>
-                                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase">
+                                <th className="px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                                   {t("actions")}
                                 </th>
                               </tr>
@@ -779,13 +868,13 @@ const AdminView: React.FC<AdminViewProps> = ({
                               {group.jobs.map((job) => {
                                 const isSelected = selectedJobIds.has(job.id);
                                 const ext = getFileExtension(job.fileName);
-                                const wordFile = isWordFile(job.fileType);
+                                const officeFile = isOfficeFile(job.fileType);
 
                                 return (
                                   <tr
                                     key={job.id}
-                                    className={`hover:bg-indigo-50/30 transition-colors ${
-                                      isSelected ? "bg-indigo-50/50" : ""
+                                    className={`group/row transition-all duration-200 border-b border-gray-50 last:border-0 ${
+                                      isSelected ? "bg-indigo-50/60" : "hover:bg-white"
                                     }`}
                                   >
                                     <td className="px-4 py-4">
@@ -796,103 +885,109 @@ const AdminView: React.FC<AdminViewProps> = ({
                                         onChange={() => toggleSelectJob(job.id)}
                                       />
                                     </td>
-                                    <td className="px-6 py-3">
-                                      <div className="flex items-center gap-3">
-                                        {/* File type badge */}
+                                    <td className="px-4 py-4">
+                                      <div className="flex items-center gap-3 w-max">
                                         <span
-                                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 ${
+                                          className={`text-[10px] font-bold px-2 py-1 rounded-md border flex-shrink-0 ${
                                             ext === "PDF"
                                               ? "bg-red-50 text-red-600 border-red-100"
                                               : ext === "DOCX" || ext === "DOC"
                                                 ? "bg-blue-50 text-blue-600 border-blue-100"
-                                                : "bg-indigo-50 text-indigo-600 border-indigo-100"
+                                                : officeFile
+                                                  ? "bg-green-50 text-green-700 border-green-200"
+                                                  : "bg-indigo-50 text-indigo-600 border-indigo-100"
                                           }`}
                                         >
                                           {ext}
                                         </span>
-
-                                        {/* File name and info */}
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            <div className="text-sm font-medium text-gray-900 truncate">
-                                              {job.fileName}
-                                            </div>
-                                            <span className="text-xs text-gray-400 flex-shrink-0">
-                                              {formatSize(job.fileSize)}
-                                            </span>
-                                            {job.printPreferences && (
-                                              <>
-                                                <span
-                                                  className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
-                                                    job.printPreferences
-                                                      .colorMode ===
-                                                    "blackWhite"
-                                                      ? "bg-gray-100 text-gray-700"
-                                                      : "bg-blue-100 text-blue-700"
-                                                  }`}
-                                                >
-                                                  {job.printPreferences
-                                                    .colorMode === "blackWhite"
-                                                    ? isRtl
-                                                      ? "أبيض وأسود"
-                                                      : "B&W"
-                                                    : isRtl
-                                                      ? "ملون"
-                                                      : "Color"}
-                                                </span>
-                                                {job.printPreferences.copies >
-                                                  1 && (
-                                                  <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium flex-shrink-0">
-                                                    {
-                                                      job.printPreferences
-                                                        .copies
-                                                    }
-                                                    x {isRtl ? "نسخ" : "copies"}
-                                                  </span>
-                                                )}
-                                              </>
-                                            )}
-                                            {currentSettings.pricing && (
-                                              <span className="text-sm font-bold text-green-600 flex-shrink-0">
-                                                {formatPrice(
-                                                  calculatePrintPrice(
-                                                    job,
-                                                    currentSettings,
-                                                    jobPageCounts[job.id] || 1,
-                                                  ).totalPrice,
-                                                )}
-                                              </span>
-                                            )}
-                                          </div>
-                                          {job.notes && (
-                                            <div className="text-xs text-indigo-600 italic mt-0.5">
-                                              {job.notes}
-                                            </div>
-                                          )}
-                                          {currentSettings.pricing && (
-                                            <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400">
-                                              <span>
-                                                {isRtl ? "صفحات:" : "Pages:"}{" "}
-                                                {jobPageCounts[job.id] || 1}
-                                              </span>
-                                              <span>
-                                                {formatPrice(
-                                                  calculatePrintPrice(
-                                                    job,
-                                                    currentSettings,
-                                                    jobPageCounts[job.id] || 1,
-                                                  ).pricePerPage,
-                                                )}
-                                                /{isRtl ? "صفحة" : "page"}
-                                              </span>
-                                            </div>
-                                          )}
+                                        <div className="flex flex-col">
+                                          <span className="text-sm font-semibold text-gray-900 max-w-[200px] truncate" title={job.fileName}>
+                                            {job.fileName}
+                                          </span>
+                                          <span className="text-xs text-gray-400">
+                                            {formatSize(job.fileSize)}
+                                          </span>
                                         </div>
                                       </div>
+                                      {job.notes && (
+                                        <div className="text-[11px] text-indigo-600 bg-indigo-50/50 px-2 py-1 rounded-md inline-block mt-2 font-medium">
+                                          {job.notes}
+                                        </div>
+                                      )}
                                     </td>
-                                    <td className="px-6 py-3">
+                                    
+                                    {/* Settings Cell (Color & Copies) */}
+                                    <td className="px-4 py-4 align-top">
+                                      {job.printPreferences && (
+                                        <div className="flex flex-col gap-2 w-max">
+                                          <button
+                                            type="button"
+                                            title={isRtl ? "انقر للتبديل" : "Toggle mode"}
+                                            disabled={savingPrefsJobId === job.id}
+                                            onClick={() => handleToggleColorMode(job)}
+                                            className={`text-xs px-2 py-1 rounded-lg font-medium cursor-pointer transition-all hover:shadow-sm select-none flex items-center justify-center gap-1.5 w-max ${
+                                              job.printPreferences.colorMode === "blackWhite"
+                                                ? "bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200"
+                                                : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
+                                            } disabled:opacity-50`}
+                                          >
+                                            {savingPrefsJobId === job.id ? (
+                                              <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                              </svg>
+                                            ) : (
+                                              <>
+                                                <span className="text-[10px]">{job.printPreferences.colorMode === "blackWhite" ? "⚫" : "🎨"}</span>
+                                                {job.printPreferences.colorMode === "blackWhite" ? (isRtl ? "أبيض وأسود" : "B&W") : (isRtl ? "ملون" : "Color")}
+                                              </>
+                                            )}
+                                          </button>
+
+                                          {/* Copies Stepper */}
+                                          {editingCopiesJobId === job.id ? (
+                                            <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-0.5 shadow-sm w-max">
+                                              <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => setEditingCopiesValue(v => Math.max(1, v - 1))} className="w-6 h-6 rounded-md hover:bg-gray-100 flex items-center justify-center text-gray-600 font-bold">−</button>
+                                              <input type="number" min={1} max={100} autoFocus value={editingCopiesValue} onChange={e => setEditingCopiesValue(parseInt(e.target.value) || 1)} onKeyDown={e => { if (e.key === "Enter") handleSaveCopies(job, editingCopiesValue); if (e.key === "Escape") setEditingCopiesJobId(null); }} onBlur={() => handleSaveCopies(job, editingCopiesValue)} className="w-10 text-center text-xs font-semibold bg-transparent focus:outline-none" />
+                                              <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => setEditingCopiesValue(v => Math.min(100, v + 1))} className="w-6 h-6 rounded-md hover:bg-gray-100 flex items-center justify-center text-gray-600 font-bold">+</button>
+                                              <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => handleSaveCopies(job, editingCopiesValue)} className="w-6 h-6 rounded-md bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 ml-1">
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={() => { setEditingCopiesJobId(job.id); setEditingCopiesValue(job.printPreferences?.copies || 1); }}
+                                              className="text-xs px-2 py-1 bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-lg font-medium cursor-pointer transition-all hover:shadow-sm w-max text-left"
+                                            >
+                                              ×{job.printPreferences?.copies || 1} {isRtl ? "نسخ" : "copies"}
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                    </td>
+
+                                    {/* Cost Cell */}
+                                    <td className="px-4 py-4 align-top w-max">
+                                      {currentSettings.pricing ? (
+                                        <div className="flex flex-col gap-2">
+                                          <span className="text-sm font-black text-green-700 bg-green-100/50 px-2.5 py-1 rounded-md border border-green-200/50 shadow-sm w-max inline-block tracking-tight">
+                                            {formatPrice(calculatePrintPrice(job, currentSettings, jobPageCounts[job.id] || 1).totalPrice)}
+                                          </span>
+                                          <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium w-max">
+                                            <span>{isRtl ? "الصفحات:" : "Pages:"}</span>
+                                            <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] text-[11px]">
+                                              {jobPageCounts[job.id] || 1}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <span className="text-xs text-gray-400">-</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-4 align-top">
                                       <span
-                                        className={`px-2 py-1 text-xs font-bold rounded-full ${
+                                        className={`px-3 py-1 text-[11px] font-bold rounded-full uppercase tracking-wide inline-block ${
                                           job.status === PrintStatus.PRINTED
                                             ? "bg-green-100 text-green-700"
                                             : "bg-yellow-100 text-yellow-700"
@@ -903,9 +998,9 @@ const AdminView: React.FC<AdminViewProps> = ({
                                           : t("pending")}
                                       </span>
                                     </td>
-                                    <td className="px-6 py-3">
-                                      <div className="flex gap-1">
-                                        {!wordFile && (
+                                    <td className="px-4 py-4 align-top">
+                                      <div className="flex flex-wrap gap-1 w-max">
+                                        {!officeFile && (
                                           <button
                                             onClick={() => handlePrint(job)}
                                             title={t("print")}
@@ -1020,96 +1115,87 @@ const AdminView: React.FC<AdminViewProps> = ({
             )}
           </>
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 max-w-2xl space-y-6">
+          <div className="bg-white rounded-3xl shadow-xl shadow-indigo-100/40 border border-white p-6 sm:p-10 max-w-2xl space-y-8 mx-auto xl:mx-0">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+              <label className="block text-sm font-bold text-gray-800 mb-2">
                 {t("shopName")}
               </label>
               <input
                 type="text"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium text-gray-900"
                 value={shopName}
                 onChange={(e) => setShopName(e.target.value)}
               />
             </div>
+            
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+              <label className="block text-sm font-bold text-gray-800 mb-2">
                 {t("shopLogo")}
               </label>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
                 {logoUrl && (
-                  <div className="w-16 h-16 rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
-                    <img
-                      src={logoUrl}
-                      alt="Logo Preview"
-                      className="w-full h-full object-contain"
-                    />
+                  <div className="w-16 h-16 rounded-xl border-2 border-white shadow-sm overflow-hidden bg-gray-100 flex-shrink-0">
+                    <img src={logoUrl} alt="Logo Preview" className="w-full h-full object-contain" />
                   </div>
                 )}
                 <input
                   type="file"
                   accept="image/*"
                   onChange={handleLogoUpload}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 file:cursor-pointer file:transition-all cursor-pointer"
                 />
               </div>
             </div>
 
             {/* Pricing Settings */}
-            <div className="border-t border-gray-200 pt-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                {isRtl ? "أسعار الطباعة" : "Pricing Settings"}
+            <div className="border-t border-gray-100 pt-8">
+              <h3 className="text-xl font-bold text-gray-900 mb-6">
+                {isRtl ? "أسعار الطباعة" : "Pricing Configuration"}
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    {isRtl
-                      ? "سعر الطباعة الملونة (لكل صفحة)"
-                      : "Color Printing (per page)"}
+                  <label className="block text-sm font-bold text-gray-800 mb-2">
+                    {isRtl ? "سعر الطباعة الملونة (لكل صفحة)" : "Color Printing (per page)"}
                   </label>
-                  <div className="flex items-center">
-                    <span className="text-gray-500 mr-2">DZD</span>
+                  <div className="relative flex items-center">
+                    <div className={`absolute ${isRtl ? "right-5" : "left-5"} text-gray-400 font-bold`}>DZD</div>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                      className={`w-full py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-16 pl-4" : "pl-16 pr-4"}`}
                       value={colorPrice}
-                      onChange={(e) =>
-                        setColorPrice(parseFloat(e.target.value) || 0)
-                      }
+                      onChange={(e) => setColorPrice(parseFloat(e.target.value) || 0)}
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    {isRtl
-                      ? "سعر الطباعة بالأبيض والأسود (لكل صفحة)"
-                      : "Black & White Printing (per page)"}
+                  <label className="block text-sm font-bold text-gray-800 mb-2">
+                    {isRtl ? "سعر الأبيض والأسود (لكل صفحة)" : "B&W Printing (per page)"}
                   </label>
-                  <div className="flex items-center">
-                    <span className="text-gray-500 mr-2">DZD</span>
+                  <div className="relative flex items-center">
+                     <div className={`absolute ${isRtl ? "right-5" : "left-5"} text-gray-400 font-bold`}>DZD</div>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                      className={`w-full py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-16 pl-4" : "pl-16 pr-4"}`}
                       value={blackWhitePrice}
-                      onChange={(e) =>
-                        setBlackWhitePrice(parseFloat(e.target.value) || 0)
-                      }
+                      onChange={(e) => setBlackWhitePrice(parseFloat(e.target.value) || 0)}
                     />
                   </div>
                 </div>
               </div>
             </div>
 
-            <button
-              onClick={saveSettings}
-              className="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 transition shadow-md shadow-indigo-100"
-            >
-              {t("saveSettings")}
-            </button>
+            <div className="pt-4">
+              <button
+                onClick={saveSettings}
+                className="w-full sm:w-auto bg-indigo-600 text-white font-bold py-4 px-10 rounded-xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-600/20 active:scale-[0.98] text-center"
+              >
+                {t("saveSettings")}
+              </button>
+            </div>
           </div>
         )}
       </div>
