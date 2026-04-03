@@ -2,7 +2,11 @@ import React, { useState, useRef, useEffect } from "react";
 import { Language, PrintJob, PrintStatus, ShopSettings } from "../types";
 import { TRANSLATIONS, ALLOWED_TYPES } from "../constants";
 import { storageService } from "../services/storageService";
-import { calculatePrintPrice, getActualPageCount, formatPrice } from "../utils/pricingUtils";
+import {
+  calculatePrintPrice,
+  getActualPageCount,
+  formatPrice,
+} from "../utils/pricingUtils";
 import QRCode from "qrcode";
 
 interface UploadViewProps {
@@ -41,7 +45,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
   const [recentJobs, setRecentJobs] = useState<PrintJob[]>([]);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [showQrCode, setShowQrCode] = useState(false);
-  
+
   // Preview States
   const [previewJobUrl, setPreviewJobUrl] = useState<string | null>(null);
   const [previewFileType, setPreviewFileType] = useState<string | null>(null);
@@ -51,20 +55,22 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
 
   // Pricing & Pages States
   const [shopSettings, setShopSettings] = useState<ShopSettings | null>(null);
-  const [jobPageCounts, setJobPageCounts] = useState<{[jobId: string]: number}>({});
+  const [jobPageCounts, setJobPageCounts] = useState<{
+    [jobId: string]: number;
+  }>({});
 
   useEffect(() => {
     const fetchData = async () => {
       const [jobs, settings] = await Promise.all([
         storageService.getMyRecentJobs(),
-        storageService.getSettings()
+        storageService.getSettings(),
       ]);
       setRecentJobs(jobs);
       setShopSettings(settings);
 
       // Async page counting for pricing display
       if (settings?.pricing) {
-        const counts: {[jobId: string]: number} = {};
+        const counts: { [jobId: string]: number } = {};
         for (const job of jobs) {
           if (job.pageCount && job.pageCount > 0) {
             counts[job.id] = job.pageCount;
@@ -75,7 +81,9 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
             if (url) {
               const response = await fetch(url);
               const blob = await response.blob();
-              const file = new File([blob], job.fileName, { type: job.fileType });
+              const file = new File([blob], job.fileName, {
+                type: job.fileType,
+              });
               counts[job.id] = await getActualPageCount(file);
             } else {
               counts[job.id] = 1;
@@ -91,10 +99,16 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
   }, [overallSuccess]);
 
   const handleCancelJob = async (id: string) => {
-    if (window.confirm(isRtl ? "هل أنت متأكد من إلغاء هذه الطباعة؟" : "Are you sure you want to cancel this print job?")) {
+    if (
+      window.confirm(
+        isRtl
+          ? "هل أنت متأكد من إلغاء هذه الطباعة؟"
+          : "Are you sure you want to cancel this print job?",
+      )
+    ) {
       try {
         await storageService.deleteJob(id);
-        setRecentJobs(prev => prev.filter(job => job.id !== id));
+        setRecentJobs((prev) => prev.filter((job) => job.id !== id));
       } catch (err) {
         console.error("Failed to cancel job", err);
       }
@@ -537,7 +551,6 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
               </div>
             </div>
           </div>
-
         </div>
 
         <div className="relative">
@@ -546,7 +559,9 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
           </label>
           <div
             onClick={() => !isUploading && fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-200 ${isUploading ? "opacity-50 cursor-not-allowed border-gray-200" : "border-indigo-200 bg-indigo-50/30 hover:bg-indigo-50 hover:border-indigo-400 hover:shadow-md"
+            className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-200 ${isUploading
+              ? "opacity-50 cursor-not-allowed border-gray-200"
+              : "border-indigo-200 bg-indigo-50/30 hover:bg-indigo-50 hover:border-indigo-400 hover:shadow-md"
               }`}
           >
             <input
@@ -797,8 +812,18 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
                         <>
                           <span className="w-1 h-1 rounded-full bg-gray-300"></span>
                           <p className="flex items-center gap-1 font-medium bg-gray-100/80 text-gray-500 px-1.5 py-0.5 rounded">
-                            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                            <svg
+                              className="w-3 h-3 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="2"
+                                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                              ></path>
                             </svg>
                             {jobPageCounts[job.id]} {isRtl ? "صفحات" : "Pages"}
                           </p>
@@ -811,7 +836,13 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
                   <div className="flex items-center gap-3">
                     {shopSettings?.pricing && (
                       <span className="text-sm font-bold text-green-600 bg-green-50 px-2.5 py-0.5 rounded-md border border-green-100 whitespace-nowrap">
-                        {formatPrice(calculatePrintPrice(job, shopSettings, jobPageCounts[job.id] || 1).totalPrice)}
+                        {formatPrice(
+                          calculatePrintPrice(
+                            job,
+                            shopSettings,
+                            jobPageCounts[job.id] || 1,
+                          ).totalPrice,
+                        )}
                       </span>
                     )}
                     <span
@@ -832,9 +863,24 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
                       title={isRtl ? "معاينة" : "Preview"}
                       className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition tooltip-container shadow-sm"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                        />
                       </svg>
                     </button>
                     {job.status === PrintStatus.PENDING && (
@@ -844,8 +890,18 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
                         title={isRtl ? "إلغاء طباعة" : "Cancel print"}
                         className="p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition shadow-sm"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
                         </svg>
                       </button>
                     )}
@@ -856,11 +912,21 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
           </div>
           {shopSettings?.pricing && (
             <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 flex items-start gap-3 mt-4">
-              <svg className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                className="w-5 h-5 text-blue-500 mt-0.5 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
               <p className="text-xs text-blue-700 font-medium">
-                {isRtl 
+                {isRtl
                   ? "ملاحظة: السعر المعروض تقريبي. قد يتغير السعر النهائي حسب إعدادات المتجر الفعلية وحجم وألوان المستند النهائية التي يتم طباعتها."
                   : "Note: The estimated price is approximate. The final price may change slightly depending on the exact dimensions, color ink coverage, and store verification."}
               </p>
@@ -960,8 +1026,18 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
                 }}
                 className="text-gray-400 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 transition-colors rounded-full p-2"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -983,16 +1059,26 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
               ) : (
                 <div className="text-center p-8 bg-white m-8 rounded-xl shadow-sm border border-gray-100 max-w-sm">
                   <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <svg
+                      className="w-8 h-8"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
                     </svg>
                   </div>
                   <h4 className="text-lg font-bold text-gray-900 mb-2">
                     {isRtl ? "المعاينة غير مدعومة" : "Preview Not Supported"}
                   </h4>
                   <p className="text-sm text-gray-500">
-                    {isRtl 
-                      ? "لا يمكن معاينة مستندات Office مباشرة على الشبكة المحلية المحمية. سيتم طباعتها بشكل صحيح." 
+                    {isRtl
+                      ? "لا يمكن معاينة مستندات Office مباشرة على الشبكة المحلية المحمية. سيتم طباعتها بشكل صحيح."
                       : "Office documents cannot be previewed natively over protected local networks. They will print correctly."}
                   </p>
                 </div>

@@ -68,7 +68,9 @@ const AdminView: React.FC<AdminViewProps> = ({
   }>({});
 
   // Tracks which job's copies stepper is open
-  const [editingCopiesJobId, setEditingCopiesJobId] = useState<string | null>(null);
+  const [editingCopiesJobId, setEditingCopiesJobId] = useState<string | null>(
+    null,
+  );
   // Tracks which job is currently saving preferences (shows spinner)
   const [savingPrefsJobId, setSavingPrefsJobId] = useState<string | null>(null);
   // Local copies value while editing
@@ -93,12 +95,12 @@ const AdminView: React.FC<AdminViewProps> = ({
       (acc: { [key: string]: CustomerGroup }, job) => {
         const name = job.customerName?.trim() || "";
         const phone = job.phoneNumber?.trim() || "";
-        
+
         let key = `${name}-${phone}`;
         if (!name && !phone) {
-           // Group anonymous files by the exact minute they were uploaded
-           const timeKey = new Date(job.uploadDate).toISOString().slice(0, 16);
-           key = `anon-${timeKey}`;
+          // Group anonymous files by the exact minute they were uploaded
+          const timeKey = new Date(job.uploadDate).toISOString().slice(0, 16);
+          key = `anon-${timeKey}`;
         }
 
         if (!acc[key]) {
@@ -847,16 +849,24 @@ const AdminView: React.FC<AdminViewProps> = ({
                                     }
                                   />
                                 </th>
-                                <th className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}>
+                                <th
+                                  className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}
+                                >
                                   {t("fileName")}
                                 </th>
-                                <th className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}>
+                                <th
+                                  className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}
+                                >
                                   {isRtl ? "الإعدادات" : "Settings"}
                                 </th>
-                                <th className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}>
+                                <th
+                                  className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}
+                                >
                                   {isRtl ? "التكلفة" : "Cost"}
                                 </th>
-                                <th className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}>
+                                <th
+                                  className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}
+                                >
                                   {t("status")}
                                 </th>
                                 <th className="px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
@@ -874,7 +884,9 @@ const AdminView: React.FC<AdminViewProps> = ({
                                   <tr
                                     key={job.id}
                                     className={`group/row transition-all duration-200 border-b border-gray-50 last:border-0 ${
-                                      isSelected ? "bg-indigo-50/60" : "hover:bg-white"
+                                      isSelected
+                                        ? "bg-indigo-50/60"
+                                        : "hover:bg-white"
                                     }`}
                                   >
                                     <td className="px-4 py-4">
@@ -901,7 +913,10 @@ const AdminView: React.FC<AdminViewProps> = ({
                                           {ext}
                                         </span>
                                         <div className="flex flex-col">
-                                          <span className="text-sm font-semibold text-gray-900 max-w-[200px] truncate" title={job.fileName}>
+                                          <span
+                                            className="text-sm font-semibold text-gray-900 max-w-[200px] truncate"
+                                            title={job.fileName}
+                                          >
                                             {job.fileName}
                                           </span>
                                           <span className="text-xs text-gray-400">
@@ -915,31 +930,67 @@ const AdminView: React.FC<AdminViewProps> = ({
                                         </div>
                                       )}
                                     </td>
-                                    
+
                                     {/* Settings Cell (Color & Copies) */}
                                     <td className="px-4 py-4 align-top">
                                       {job.printPreferences && (
                                         <div className="flex flex-col gap-2 w-max">
                                           <button
                                             type="button"
-                                            title={isRtl ? "انقر للتبديل" : "Toggle mode"}
-                                            disabled={savingPrefsJobId === job.id}
-                                            onClick={() => handleToggleColorMode(job)}
+                                            title={
+                                              isRtl
+                                                ? "انقر للتبديل"
+                                                : "Toggle mode"
+                                            }
+                                            disabled={
+                                              savingPrefsJobId === job.id
+                                            }
+                                            onClick={() =>
+                                              handleToggleColorMode(job)
+                                            }
                                             className={`text-xs px-2 py-1 rounded-lg font-medium cursor-pointer transition-all hover:shadow-sm select-none flex items-center justify-center gap-1.5 w-max ${
-                                              job.printPreferences.colorMode === "blackWhite"
+                                              job.printPreferences.colorMode ===
+                                              "blackWhite"
                                                 ? "bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200"
                                                 : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
                                             } disabled:opacity-50`}
                                           >
                                             {savingPrefsJobId === job.id ? (
-                                              <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                              <svg
+                                                className="animate-spin w-3 h-3"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                              >
+                                                <circle
+                                                  className="opacity-25"
+                                                  cx="12"
+                                                  cy="12"
+                                                  r="10"
+                                                  stroke="currentColor"
+                                                  strokeWidth="4"
+                                                />
+                                                <path
+                                                  className="opacity-75"
+                                                  fill="currentColor"
+                                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                                />
                                               </svg>
                                             ) : (
                                               <>
-                                                <span className="text-[10px]">{job.printPreferences.colorMode === "blackWhite" ? "⚫" : "🎨"}</span>
-                                                {job.printPreferences.colorMode === "blackWhite" ? (isRtl ? "أبيض وأسود" : "B&W") : (isRtl ? "ملون" : "Color")}
+                                                <span className="text-[10px]">
+                                                  {job.printPreferences
+                                                    .colorMode === "blackWhite"
+                                                    ? "⚫"
+                                                    : "🎨"}
+                                                </span>
+                                                {job.printPreferences
+                                                  .colorMode === "blackWhite"
+                                                  ? isRtl
+                                                    ? "أبيض وأسود"
+                                                    : "B&W"
+                                                  : isRtl
+                                                    ? "ملون"
+                                                    : "Color"}
                                               </>
                                             )}
                                           </button>
@@ -947,20 +998,107 @@ const AdminView: React.FC<AdminViewProps> = ({
                                           {/* Copies Stepper */}
                                           {editingCopiesJobId === job.id ? (
                                             <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-0.5 shadow-sm w-max">
-                                              <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => setEditingCopiesValue(v => Math.max(1, v - 1))} className="w-6 h-6 rounded-md hover:bg-gray-100 flex items-center justify-center text-gray-600 font-bold">−</button>
-                                              <input type="number" min={1} max={100} autoFocus value={editingCopiesValue} onChange={e => setEditingCopiesValue(parseInt(e.target.value) || 1)} onKeyDown={e => { if (e.key === "Enter") handleSaveCopies(job, editingCopiesValue); if (e.key === "Escape") setEditingCopiesJobId(null); }} onBlur={() => handleSaveCopies(job, editingCopiesValue)} className="w-10 text-center text-xs font-semibold bg-transparent focus:outline-none" />
-                                              <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => setEditingCopiesValue(v => Math.min(100, v + 1))} className="w-6 h-6 rounded-md hover:bg-gray-100 flex items-center justify-center text-gray-600 font-bold">+</button>
-                                              <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => handleSaveCopies(job, editingCopiesValue)} className="w-6 h-6 rounded-md bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 ml-1">
-                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                                              <button
+                                                type="button"
+                                                onMouseDown={(e) =>
+                                                  e.preventDefault()
+                                                }
+                                                onClick={() =>
+                                                  setEditingCopiesValue((v) =>
+                                                    Math.max(1, v - 1),
+                                                  )
+                                                }
+                                                className="w-6 h-6 rounded-md hover:bg-gray-100 flex items-center justify-center text-gray-600 font-bold"
+                                              >
+                                                −
+                                              </button>
+                                              <input
+                                                type="number"
+                                                min={1}
+                                                max={100}
+                                                autoFocus
+                                                value={editingCopiesValue}
+                                                onChange={(e) =>
+                                                  setEditingCopiesValue(
+                                                    parseInt(e.target.value) ||
+                                                      1,
+                                                  )
+                                                }
+                                                onKeyDown={(e) => {
+                                                  if (e.key === "Enter")
+                                                    handleSaveCopies(
+                                                      job,
+                                                      editingCopiesValue,
+                                                    );
+                                                  if (e.key === "Escape")
+                                                    setEditingCopiesJobId(null);
+                                                }}
+                                                onBlur={() =>
+                                                  handleSaveCopies(
+                                                    job,
+                                                    editingCopiesValue,
+                                                  )
+                                                }
+                                                className="w-10 text-center text-xs font-semibold bg-transparent focus:outline-none"
+                                              />
+                                              <button
+                                                type="button"
+                                                onMouseDown={(e) =>
+                                                  e.preventDefault()
+                                                }
+                                                onClick={() =>
+                                                  setEditingCopiesValue((v) =>
+                                                    Math.min(100, v + 1),
+                                                  )
+                                                }
+                                                className="w-6 h-6 rounded-md hover:bg-gray-100 flex items-center justify-center text-gray-600 font-bold"
+                                              >
+                                                +
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onMouseDown={(e) =>
+                                                  e.preventDefault()
+                                                }
+                                                onClick={() =>
+                                                  handleSaveCopies(
+                                                    job,
+                                                    editingCopiesValue,
+                                                  )
+                                                }
+                                                className="w-6 h-6 rounded-md bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 ml-1"
+                                              >
+                                                <svg
+                                                  className="w-3 h-3"
+                                                  fill="none"
+                                                  stroke="currentColor"
+                                                  viewBox="0 0 24 24"
+                                                >
+                                                  <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth="3"
+                                                    d="M5 13l4 4L19 7"
+                                                  />
+                                                </svg>
                                               </button>
                                             </div>
                                           ) : (
                                             <button
                                               type="button"
-                                              onClick={() => { setEditingCopiesJobId(job.id); setEditingCopiesValue(job.printPreferences?.copies || 1); }}
+                                              onClick={() => {
+                                                setEditingCopiesJobId(job.id);
+                                                setEditingCopiesValue(
+                                                  job.printPreferences
+                                                    ?.copies || 1,
+                                                );
+                                              }}
                                               className="text-xs px-2 py-1 bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-lg font-medium cursor-pointer transition-all hover:shadow-sm w-max text-left"
                                             >
-                                              ×{job.printPreferences?.copies || 1} {isRtl ? "نسخ" : "copies"}
+                                              ×
+                                              {job.printPreferences?.copies ||
+                                                1}{" "}
+                                              {isRtl ? "نسخ" : "copies"}
                                             </button>
                                           )}
                                         </div>
@@ -972,17 +1110,27 @@ const AdminView: React.FC<AdminViewProps> = ({
                                       {currentSettings.pricing ? (
                                         <div className="flex flex-col gap-2">
                                           <span className="text-sm font-black text-green-700 bg-green-100/50 px-2.5 py-1 rounded-md border border-green-200/50 shadow-sm w-max inline-block tracking-tight">
-                                            {formatPrice(calculatePrintPrice(job, currentSettings, jobPageCounts[job.id] || 1).totalPrice)}
+                                            {formatPrice(
+                                              calculatePrintPrice(
+                                                job,
+                                                currentSettings,
+                                                jobPageCounts[job.id] || 1,
+                                              ).totalPrice,
+                                            )}
                                           </span>
                                           <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium w-max">
-                                            <span>{isRtl ? "الصفحات:" : "Pages:"}</span>
+                                            <span>
+                                              {isRtl ? "الصفحات:" : "Pages:"}
+                                            </span>
                                             <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] text-[11px]">
                                               {jobPageCounts[job.id] || 1}
                                             </span>
                                           </div>
                                         </div>
                                       ) : (
-                                        <span className="text-xs text-gray-400">-</span>
+                                        <span className="text-xs text-gray-400">
+                                          -
+                                        </span>
                                       )}
                                     </td>
                                     <td className="px-4 py-4 align-top">
@@ -1127,7 +1275,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                 onChange={(e) => setShopName(e.target.value)}
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-bold text-gray-800 mb-2">
                 {t("shopLogo")}
@@ -1135,7 +1283,11 @@ const AdminView: React.FC<AdminViewProps> = ({
               <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
                 {logoUrl && (
                   <div className="w-16 h-16 rounded-xl border-2 border-white shadow-sm overflow-hidden bg-gray-100 flex-shrink-0">
-                    <img src={logoUrl} alt="Logo Preview" className="w-full h-full object-contain" />
+                    <img
+                      src={logoUrl}
+                      alt="Logo Preview"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
                 )}
                 <input
@@ -1155,33 +1307,49 @@ const AdminView: React.FC<AdminViewProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-bold text-gray-800 mb-2">
-                    {isRtl ? "سعر الطباعة الملونة (لكل صفحة)" : "Color Printing (per page)"}
+                    {isRtl
+                      ? "سعر الطباعة الملونة (لكل صفحة)"
+                      : "Color Printing (per page)"}
                   </label>
                   <div className="relative flex items-center">
-                    <div className={`absolute ${isRtl ? "right-5" : "left-5"} text-gray-400 font-bold`}>DZD</div>
+                    <div
+                      className={`absolute ${isRtl ? "right-5" : "left-5"} text-gray-400 font-bold`}
+                    >
+                      DZD
+                    </div>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       className={`w-full py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-16 pl-4" : "pl-16 pr-4"}`}
                       value={colorPrice}
-                      onChange={(e) => setColorPrice(parseFloat(e.target.value) || 0)}
+                      onChange={(e) =>
+                        setColorPrice(parseFloat(e.target.value) || 0)
+                      }
                     />
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-800 mb-2">
-                    {isRtl ? "سعر الأبيض والأسود (لكل صفحة)" : "B&W Printing (per page)"}
+                    {isRtl
+                      ? "سعر الأبيض والأسود (لكل صفحة)"
+                      : "B&W Printing (per page)"}
                   </label>
                   <div className="relative flex items-center">
-                     <div className={`absolute ${isRtl ? "right-5" : "left-5"} text-gray-400 font-bold`}>DZD</div>
+                    <div
+                      className={`absolute ${isRtl ? "right-5" : "left-5"} text-gray-400 font-bold`}
+                    >
+                      DZD
+                    </div>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       className={`w-full py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-16 pl-4" : "pl-16 pr-4"}`}
                       value={blackWhitePrice}
-                      onChange={(e) => setBlackWhitePrice(parseFloat(e.target.value) || 0)}
+                      onChange={(e) =>
+                        setBlackWhitePrice(parseFloat(e.target.value) || 0)
+                      }
                     />
                   </div>
                 </div>

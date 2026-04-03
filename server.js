@@ -106,7 +106,9 @@ const getPdfPageCount = async (filePath) => {
     });
 
     const pageCount = pdfDoc.getPageCount();
-    console.log(`📄 PDF page count for ${path.basename(filePath)}: ${pageCount}`);
+    console.log(
+      `📄 PDF page count for ${path.basename(filePath)}: ${pageCount}`,
+    );
     return pageCount;
   } catch (err) {
     console.error(
@@ -146,10 +148,14 @@ const backfillPageCounts = async () => {
         changed = true;
         console.log(`  ✅ ${job.fileName}: ${count} page(s)`);
       } else {
-        console.warn(`  ⚠️  Could not count pages for ${job.fileName} — file may be corrupted.`);
+        console.warn(
+          `  ⚠️  Could not count pages for ${job.fileName} — file may be corrupted.`,
+        );
       }
     } else {
-      console.warn(`  ⚠️  File not found for job ${job.id}: ${job.serverFileName}`);
+      console.warn(
+        `  ⚠️  File not found for job ${job.id}: ${job.serverFileName}`,
+      );
     }
   }
 
@@ -161,9 +167,7 @@ const backfillPageCounts = async () => {
 
 loadDB();
 // Run backfill after DB is loaded (non-blocking — won't block server startup)
-backfillPageCounts().catch((err) =>
-  console.error("❌ Backfill error:", err),
-);
+backfillPageCounts().catch((err) => console.error("❌ Backfill error:", err));
 
 // Multer configuration
 const storage = multer.diskStorage({
@@ -324,10 +328,11 @@ app.put("/api/jobs/:id/preferences", (req, res) => {
   }
 
   saveDB();
-  console.log(`✏️  Updated preferences for job ${job.id}: ${job.printPreferences.colorMode}, ${job.printPreferences.copies} cop(ies)`);
+  console.log(
+    `✏️  Updated preferences for job ${job.id}: ${job.printPreferences.colorMode}, ${job.printPreferences.copies} cop(ies)`,
+  );
   res.status(200).json({ success: true, job });
 });
-
 
 // Delete job
 app.delete("/api/jobs/:id", (req, res) => {
