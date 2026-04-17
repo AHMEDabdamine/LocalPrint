@@ -897,18 +897,18 @@ const AdminView: React.FC<AdminViewProps> = ({
                         </div>
                         <button
                           onClick={() => toggleGroup(group.key)}
-                          className="flex-1 px-2 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                          className="flex-1 px-2 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
                         >
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <div className="flex items-center gap-4 flex-1 min-w-0">
                             <div
-                              className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                              className={`w-10 h-10 rounded-full flex items-center justify-center ${
                                 pendingCount > 0
                                   ? "bg-indigo-100 text-indigo-600"
                                   : "bg-gray-100 text-gray-400"
                               }`}
                             >
                               <svg
-                                className="w-4 h-4"
+                                className="w-6 h-6"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -922,11 +922,11 @@ const AdminView: React.FC<AdminViewProps> = ({
                               </svg>
                             </div>
                             <div className="truncate text-left">
-                              <h3 className="text-base font-semibold text-gray-900 truncate">
+                              <h3 className="text-lg font-bold text-gray-900 truncate">
                                 {group.customerName ||
                                   (isRtl ? "بدون اسم" : "No Name")}
                               </h3>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-sm text-gray-500">
                                 {group.phoneNumber ||
                                   (isRtl ? "بدون هاتف" : "No Phone")}
                               </p>
@@ -951,7 +951,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                               </div>
                             )}
                             <span
-                              className={`px-2 py-0.5 text-xs font-bold rounded-full ${
+                              className={`px-3 py-1 text-xs font-bold rounded-full ${
                                 pendingCount > 0
                                   ? "bg-yellow-100 text-yellow-700"
                                   : "bg-green-100 text-green-700"
@@ -960,7 +960,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                               {group.jobs.length} {isRtl ? "ملف" : "files"}
                             </span>
                             <svg
-                              className={`w-4 h-4 text-gray-400 transition-transform ${
+                              className={`w-5 h-5 text-gray-400 transition-transform ${
                                 isExpanded ? "rotate-180" : ""
                               }`}
                               fill="none"
@@ -979,13 +979,13 @@ const AdminView: React.FC<AdminViewProps> = ({
                       </div>
                       {isExpanded && (
                         <div className="bg-gray-50/30 overflow-x-auto">
-                          <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+                          <table className="w-full text-left border-collapse">
                             <thead className="bg-[#F8FAFC] border-b border-gray-100">
                               <tr>
-                                <th className="px-2 py-2 w-8 text-center">
+                                <th className="px-4 py-4 w-10">
                                   <input
                                     type="checkbox"
-                                    className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                    className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                                     checked={
                                       allInGroupSelected &&
                                       group.jobs.length > 0
@@ -996,29 +996,26 @@ const AdminView: React.FC<AdminViewProps> = ({
                                   />
                                 </th>
                                 <th
-                                  className={`px-2 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : "text-left"}`}
-                                  style={{ width: '40%' }}
+                                  className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}
                                 >
                                   {t("fileName")}
                                 </th>
                                 <th
-                                  className={`px-2 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider w-16 ${isRtl ? "text-right" : "text-left"}`}
+                                  className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}
                                 >
-                                  {isRtl ? "إعدادات" : "Set"}
+                                  {isRtl ? "الإعدادات" : "Settings"}
                                 </th>
                                 <th
-                                  className={`px-2 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider w-16 ${isRtl ? "text-right" : "text-left"}`}
+                                  className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}
                                 >
-                                  {isRtl ? "السعر" : "Cost"}
+                                  {isRtl ? "التكلفة" : "Cost"}
                                 </th>
                                 <th
-                                  className={`px-2 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider w-20 ${isRtl ? "text-right" : "text-left"}`}
+                                  className={`px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ${isRtl ? "text-right" : ""}`}
                                 >
                                   {t("status")}
                                 </th>
-                                <th
-                                  className={`px-2 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider w-20 ${isRtl ? "text-right" : "text-left"}`}
-                                >
+                                <th className="px-4 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                                   {t("actions")}
                                 </th>
                               </tr>
@@ -1038,18 +1035,18 @@ const AdminView: React.FC<AdminViewProps> = ({
                                         : "hover:bg-white"
                                     }`}
                                   >
-                                    <td className="px-2 py-2 w-8">
+                                    <td className="px-4 py-4">
                                       <input
                                         type="checkbox"
-                                        className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                        className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                                         checked={isSelected}
                                         onChange={() => toggleSelectJob(job.id)}
                                       />
                                     </td>
-                                    <td className={`px-2 py-2 ${isRtl ? "text-right" : ""}`} style={{ width: '40%' }}>
-                                      <div className={`flex items-center gap-2 w-max ${isRtl ? "flex-row-reverse" : ""}`}>
+                                    <td className="px-4 py-4">
+                                      <div className="flex items-center gap-3 w-max">
                                         <span
-                                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 ${
+                                          className={`text-[10px] font-bold px-2 py-1 rounded-md border flex-shrink-0 ${
                                             ext === "PDF"
                                               ? "bg-red-50 text-red-600 border-red-100"
                                               : ext === "DOCX" || ext === "DOC"
@@ -1063,27 +1060,27 @@ const AdminView: React.FC<AdminViewProps> = ({
                                         </span>
                                         <div className="flex flex-col">
                                           <span
-                                            className="text-xs font-medium text-gray-900 max-w-[200px] truncate"
+                                            className="text-sm font-semibold text-gray-900 max-w-[200px] truncate"
                                             title={job.fileName}
                                           >
                                             {job.fileName}
                                           </span>
-                                          <span className="text-[10px] text-gray-400">
+                                          <span className="text-xs text-gray-400">
                                             {formatSize(job.fileSize)}
                                           </span>
                                         </div>
                                       </div>
                                       {job.notes && (
-                                        <div className="text-[10px] text-indigo-600 bg-indigo-50/50 px-1.5 py-0.5 rounded inline-block mt-1 font-medium">
+                                        <div className="text-[11px] text-indigo-600 bg-indigo-50/50 px-2 py-1 rounded-md inline-block mt-2 font-medium">
                                           {job.notes}
                                         </div>
                                       )}
                                     </td>
 
                                     {/* Settings Cell (Color & Copies) */}
-                                    <td className={`px-2 py-2 align-top w-16 ${isRtl ? "text-right" : ""}`}>
+                                    <td className="px-4 py-4 align-top">
                                       {job.printPreferences && (
-                                        <div className="flex flex-col gap-1 w-max">
+                                        <div className="flex flex-col gap-2 w-max">
                                           <button
                                             type="button"
                                             title={
@@ -1126,7 +1123,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                                               </svg>
                                             ) : (
                                               <>
-                                                <span className="text-[9px]">
+                                                <span className="text-[10px]">
                                                   {job.printPreferences
                                                     .colorMode === "blackWhite"
                                                     ? "⚫"
@@ -1135,11 +1132,11 @@ const AdminView: React.FC<AdminViewProps> = ({
                                                 {job.printPreferences
                                                   .colorMode === "blackWhite"
                                                   ? isRtl
-                                                    ? "B&W"
+                                                    ? "أبيض وأسود"
                                                     : "B&W"
                                                   : isRtl
-                                                    ? "CLR"
-                                                    : "CLR"}
+                                                    ? "ملون"
+                                                    : "Color"}
                                               </>
                                             )}
                                           </button>
@@ -1255,7 +1252,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                                     </td>
 
                                     {/* Cost Cell */}
-                                    <td className={`px-2 py-2 align-top w-16 ${isRtl ? "text-right" : ""}`}>
+                                    <td className="px-4 py-4 align-top w-max">
                                       {currentSettings.pricing ? (
                                         (() => {
                                           const pageCount = jobPageCounts[job.id] || 1;
@@ -1264,35 +1261,42 @@ const AdminView: React.FC<AdminViewProps> = ({
                                           const hasDiscount = discountResult.discountAmount > 0;
 
                                           return (
-                                            <div className="flex flex-col gap-1">
+                                            <div className="flex flex-col gap-2">
                                               <div className="flex flex-col">
                                                 {hasDiscount && (
-                                                  <span className="text-[10px] text-gray-400 line-through">
+                                                  <span className="text-xs text-gray-400 line-through">
                                                     {formatPrice(discountResult.originalAmount)}
                                                   </span>
                                                 )}
-                                                <span className={`text-xs font-bold bg-green-100/50 px-1.5 py-0.5 rounded border border-green-200/50 w-max ${hasDiscount ? "text-green-700" : "text-green-700"}`}>
+                                                <span className={`text-sm font-black bg-green-100/50 px-2.5 py-1 rounded-md border border-green-200/50 shadow-sm w-max inline-block tracking-tight ${hasDiscount ? "text-green-700" : "text-green-700"}`}>
                                                   {formatPrice(discountResult.finalAmount)}
                                                 </span>
                                                 {hasDiscount && discountResult.rule && (
-                                                  <span className="text-[10px] text-green-600">
-                                                    {discountResult.rule.name}
+                                                  <span className="text-xs text-green-600 mt-0.5">
+                                                    {isRtl ? "تم تطبيق خصم" : "Discount applied"}: {discountResult.rule.name}
                                                   </span>
                                                 )}
                                               </div>
-                                              <div className="flex items-center gap-1 text-[10px] text-gray-500 font-medium w-max">
-                                                <span>{pageCount} {isRtl ? "ص" : "p"}</span>
+                                              <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium w-max">
+                                                <span>
+                                                  {isRtl ? "الصفحات:" : "Pages:"}
+                                                </span>
+                                                <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] text-[11px]">
+                                                  {pageCount}
+                                                </span>
                                               </div>
                                             </div>
                                           );
                                         })()
                                       ) : (
-                                        <span className="text-xs text-gray-400">—</span>
+                                        <span className="text-xs text-gray-400">
+                                          -
+                                        </span>
                                       )}
                                     </td>
-                                    <td className={`px-2 py-2 align-top w-16 ${isRtl ? "text-right" : ""}`}>
+                                    <td className="px-4 py-4 align-top">
                                       <span
-                                        className={`px-1.5 py-0.5 text-[9px] font-bold rounded-full uppercase tracking-wide inline-block ${
+                                        className={`px-3 py-1 text-[11px] font-bold rounded-full uppercase tracking-wide inline-block ${
                                           job.status === PrintStatus.PRINTED
                                             ? "bg-green-100 text-green-700"
                                             : "bg-yellow-100 text-yellow-700"
@@ -1303,8 +1307,8 @@ const AdminView: React.FC<AdminViewProps> = ({
                                           : t("pending")}
                                       </span>
                                     </td>
-                                    <td className={`px-2 py-2 align-top w-16 ${isRtl ? "text-right" : ""}`}>
-                                      <div className={`flex flex-wrap gap-0.5 w-max ${isRtl ? "flex-row-reverse" : ""}`}>
+                                    <td className="px-4 py-4 align-top">
+                                      <div className="flex flex-wrap gap-1 w-max">
                                         {!officeFile && (
                                           <button
                                             onClick={() => handlePrint(job)}
@@ -1436,32 +1440,32 @@ const AdminView: React.FC<AdminViewProps> = ({
             {/* Settings Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {/* Shop Info Card */}
-              <div className="bg-white rounded-xl shadow-md shadow-indigo-100/20 border border-gray-100 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-white rounded-2xl shadow-lg shadow-indigo-100/30 border border-gray-100 overflow-hidden">
+                <div className="px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-gray-900">
-                      {isRtl ? "معلومات المحل" : "Shop Info"}
+                    <h3 className="font-bold text-gray-900">
+                      {isRtl ? "معلومات المحل" : "Shop Information"}
                     </h3>
-                    <p className="text-[10px] text-gray-500">
+                    <p className="text-xs text-gray-500">
                       {isRtl ? "الاسم والشعار" : "Name & logo"}
                     </p>
                   </div>
                 </div>
 
-                <div className="p-4 space-y-4">
+                <div className="p-5 sm:p-6 space-y-5">
                   {/* Shop Name */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
                       {t("shopName")}
                     </label>
                     <input
                       type="text"
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-sm text-gray-900 placeholder-gray-400"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-gray-900 placeholder-gray-400"
                       value={shopName}
                       onChange={(e) => setShopName(e.target.value)}
                       placeholder={isRtl ? "اسم المحل" : "Print Shop Name"}
@@ -1470,12 +1474,12 @@ const AdminView: React.FC<AdminViewProps> = ({
 
                   {/* Logo Upload */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
                       {t("shopLogo")}
                     </label>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                       {logoUrl ? (
-                        <div className="w-14 h-14 rounded-lg border-2 border-white shadow-md overflow-hidden bg-gray-100 flex-shrink-0">
+                        <div className="w-20 h-20 rounded-xl border-2 border-white shadow-md overflow-hidden bg-gray-100 flex-shrink-0">
                           <img
                             src={logoUrl}
                             alt="Logo Preview"
@@ -1483,8 +1487,8 @@ const AdminView: React.FC<AdminViewProps> = ({
                           />
                         </div>
                       ) : (
-                        <div className="w-14 h-14 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center flex-shrink-0">
-                          <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
                         </div>
@@ -1494,17 +1498,17 @@ const AdminView: React.FC<AdminViewProps> = ({
                           type="file"
                           accept="image/*"
                           onChange={handleLogoUpload}
-                          className="block w-full text-xs text-gray-500 
-                            file:mr-2 file:py-2 file:px-3 
-                            file:rounded-lg file:border-0 
-                            file:text-xs file:font-semibold 
+                          className="block w-full text-sm text-gray-500 
+                            file:mr-4 file:py-2.5 file:px-4 
+                            file:rounded-xl file:border-0 
+                            file:text-sm file:font-semibold 
                             file:bg-indigo-50 file:text-indigo-600 
                             hover:file:bg-indigo-100 
                             file:cursor-pointer file:transition-all 
                             cursor-pointer"
                         />
-                        <p className="text-[10px] text-gray-400 mt-1">
-                          {isRtl ? "PNG, JPG أو GIF (حد أقصى 2MB)" : "PNG, JPG or GIF (max 2MB)"}
+                        <p className="text-xs text-gray-400 mt-2">
+                          {isRtl ? "PNG, JPG أو GIF (الحد الأقصى 2MB)" : "PNG, JPG or GIF (max 2MB)"}
                         </p>
                       </div>
                     </div>
@@ -1513,143 +1517,149 @@ const AdminView: React.FC<AdminViewProps> = ({
               </div>
 
               {/* Pricing Card */}
-              <div className="bg-white rounded-xl shadow-md shadow-indigo-100/20 border border-gray-100 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-white rounded-2xl shadow-lg shadow-indigo-100/30 border border-gray-100 overflow-hidden">
+                <div className="px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-gray-900">
-                      {isRtl ? "الأسعار" : "Prices"}
+                    <h3 className="font-bold text-gray-900">
+                      {isRtl ? "أسعار الطباعة" : "Printing Prices"}
                     </h3>
-                    <p className="text-[10px] text-gray-500">
-                      {isRtl ? "لكل صفحة" : "Per page"}
+                    <p className="text-xs text-gray-500">
+                      {isRtl ? "التسعير لكل صفحة" : "Per page pricing"}
                     </p>
                   </div>
                 </div>
 
-                <div className="p-4 space-y-4">
+                <div className="p-5 sm:p-6 space-y-5">
                   {/* Color Price */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      {isRtl ? "الطباعة الملونة" : "Color"}
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {isRtl ? "الطباعة الملونة" : "Color Printing"}
                     </label>
                     <div className="relative">
-                      <div className={`absolute ${isRtl ? "right-3" : "left-3"} top-1/2 -translate-y-1/2`}>
-                        <span className="text-gray-400 font-bold text-xs">DZD</span>
+                      <div className={`absolute ${isRtl ? "right-4" : "left-4"} top-1/2 -translate-y-1/2`}>
+                        <span className="text-gray-400 font-bold text-sm">DZD</span>
                       </div>
                       <input
                         type="number"
                         step="0.01"
                         min="0"
-                        className={`w-full py-2 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-sm font-semibold text-gray-900 ${isRtl ? "pr-12 pl-3" : "pl-12 pr-3"}`}
+                        className={`w-full py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-14 pl-4" : "pl-14 pr-4"}`}
                         value={colorPrice}
                         onChange={(e) => setColorPrice(parseFloat(e.target.value) || 0)}
                       />
                     </div>
+                    <p className="text-xs text-gray-400 mt-1.5">
+                      {isRtl ? "لكل صفحة" : "per page"}
+                    </p>
                   </div>
 
                   {/* B&W Price */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      {isRtl ? "أبيض وأسود" : "B&W"}
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {isRtl ? "الأبيض والأسود" : "Black & White"}
                     </label>
                     <div className="relative">
-                      <div className={`absolute ${isRtl ? "right-3" : "left-3"} top-1/2 -translate-y-1/2`}>
-                        <span className="text-gray-400 font-bold text-xs">DZD</span>
+                      <div className={`absolute ${isRtl ? "right-4" : "left-4"} top-1/2 -translate-y-1/2`}>
+                        <span className="text-gray-400 font-bold text-sm">DZD</span>
                       </div>
                       <input
                         type="number"
                         step="0.01"
                         min="0"
-                        className={`w-full py-2 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-sm font-semibold text-gray-900 ${isRtl ? "pr-12 pl-3" : "pl-12 pr-3"}`}
+                        className={`w-full py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-14 pl-4" : "pl-14 pr-4"}`}
                         value={blackWhitePrice}
                         onChange={(e) => setBlackWhitePrice(parseFloat(e.target.value) || 0)}
                       />
                     </div>
+                    <p className="text-xs text-gray-400 mt-1.5">
+                      {isRtl ? "لكل صفحة" : "per page"}
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Discount Rules Card - Full Width */}
-            <div className="bg-white rounded-xl shadow shadow-indigo-100/20 border border-gray-100 overflow-hidden lg:col-span-2">
-              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-white rounded-2xl shadow-lg shadow-indigo-100/30 border border-gray-100 overflow-hidden lg:col-span-2">
+              <div className="px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-gray-900">
+                    <h3 className="font-bold text-gray-900">
                       {isRtl ? "قواعد الخصم" : "Discount Rules"}
                     </h3>
-                    <p className="text-[10px] text-gray-500">
+                    <p className="text-xs text-gray-500">
                       {isRtl ? "خصومات تلقائية للطباعة بالجملة" : "Automatic bulk print discounts"}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={handleAddRule}
-                  className="px-3 py-1.5 bg-purple-600 text-white text-xs font-semibold rounded-lg hover:bg-purple-700 transition-all flex items-center gap-1"
+                  className="px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-xl hover:bg-purple-700 transition-all flex items-center gap-2"
                 >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                   </svg>
-                  {isRtl ? "إضافة" : "Add"}
+                  {isRtl ? "إضافة قاعدة" : "Add Rule"}
                 </button>
               </div>
 
-              <div className="p-4">
+              <div className="p-5 sm:p-6">
                 {discountRules.length === 0 ? (
-                  <div className="text-center py-6 text-gray-500">
-                    <svg className="w-10 h-10 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="text-center py-8 text-gray-500">
+                    <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <p className="text-sm">{isRtl ? "لا توجد قواعد خصم بعد" : "No discount rules yet"}</p>
-                    <p className="text-xs mt-1">
-                      {isRtl ? "انقر على إضافة لإنشاء خصم جديد" : "Click Add to create a discount"}
+                    <p>{isRtl ? "لا توجد قواعد خصم بعد" : "No discount rules yet"}</p>
+                    <p className="text-sm mt-1">
+                      {isRtl ? "انقر على إضافة قاعدة لإنشاء خصم جديد" : "Click Add Rule to create a discount"}
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {discountRules.map((rule) => (
                       <div
                         key={rule.id}
-                        className={`flex items-center justify-between p-2 rounded-lg border transition-all ${
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
                           rule.is_active
                             ? "bg-white border-gray-200"
                             : "bg-gray-50 border-gray-100 opacity-60"
                         }`}
                       >
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-4">
                           {/* Active Toggle */}
                           <button
                             onClick={() => handleToggleRuleActive(rule)}
-                            className={`w-10 h-5 rounded-full transition-all relative ${
+                            className={`w-12 h-6 rounded-full transition-all relative ${
                               rule.is_active ? "bg-purple-600" : "bg-gray-300"
                             }`}
                           >
                             <div
-                              className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${
-                                rule.is_active ? (isRtl ? "right-0.5" : "left-5") : (isRtl ? "left-5" : "left-0.5")
+                              className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${
+                                rule.is_active ? (isRtl ? "right-1" : "left-7") : (isRtl ? "left-7" : "left-1")
                               }`}
                             />
                           </button>
 
                           <div>
-                            <div className="flex items-center gap-1">
-                              <span className="font-medium text-sm text-gray-900">{rule.name}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-gray-900">{rule.name}</span>
                               {rule.priority > 0 && (
-                                <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] rounded font-medium">
+                                <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded-full font-medium">
                                   P{rule.priority}
                                 </span>
                               )}
                             </div>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-sm text-gray-500 mt-0.5">
                               {rule.discount_type === "percent"
                                 ? `${rule.discount_value}% ${isRtl ? "خصم" : "off"}`
                                 : `${rule.discount_value} DZD ${isRtl ? "خصم" : "off"}`}
@@ -1688,53 +1698,53 @@ const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-3 sm:mt-4">
-              <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-100">
-                <div className="text-[10px] text-gray-500 mb-0.5">
-                  {isRtl ? "معلقة" : "Pending"}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-6">
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <div className="text-xs text-gray-500 mb-1">
+                  {isRtl ? "الملفات المعلقة" : "Pending Files"}
                 </div>
-                <div className="text-lg font-bold text-yellow-600">
+                <div className="text-xl sm:text-2xl font-bold text-yellow-600">
                   {groups.reduce((acc, g) => acc + g.jobs.filter(j => j.status === PrintStatus.PENDING).length, 0)}
                 </div>
               </div>
-              <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-100">
-                <div className="text-[10px] text-gray-500 mb-0.5">
-                  {isRtl ? "مطبوعة" : "Printed"}
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <div className="text-xs text-gray-500 mb-1">
+                  {isRtl ? "الملفات المطبوعة" : "Printed Files"}
                 </div>
-                <div className="text-lg font-bold text-green-600">
+                <div className="text-xl sm:text-2xl font-bold text-green-600">
                   {groups.reduce((acc, g) => acc + g.jobs.filter(j => j.status === PrintStatus.PRINTED).length, 0)}
                 </div>
               </div>
-              <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-100">
-                <div className="text-[10px] text-gray-500 mb-0.5">
-                  {isRtl ? "العملاء" : "Customers"}
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <div className="text-xs text-gray-500 mb-1">
+                  {isRtl ? "إجمالي العملاء" : "Total Customers"}
                 </div>
-                <div className="text-lg font-bold text-indigo-600">
+                <div className="text-xl sm:text-2xl font-bold text-indigo-600">
                   {groups.length}
                 </div>
               </div>
-              <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-100">
-                <div className="text-[10px] text-gray-500 mb-0.5">
-                  {isRtl ? "الملفات" : "Files"}
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <div className="text-xs text-gray-500 mb-1">
+                  {isRtl ? "إجمالي الملفات" : "Total Files"}
                 </div>
-                <div className="text-lg font-bold text-gray-700">
+                <div className="text-xl sm:text-2xl font-bold text-gray-700">
                   {groups.reduce((acc, g) => acc + g.jobs.length, 0)}
                 </div>
               </div>
             </div>
 
             {/* Save Button */}
-            <div className="mt-4 sm:mt-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              <p className="text-xs text-gray-500">
+            <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+              <p className="text-sm text-gray-500">
                 {isRtl
-                  ? "سيتم الحفظ فورًا"
-                  : "Changes saved immediately"}
+                  ? "سيتم حفظ التغييرات فورًا"
+                  : "Changes will be saved immediately"}
               </p>
               <button
                 onClick={saveSettings}
-                className="w-full sm:w-auto bg-indigo-600 text-white font-bold py-2.5 px-6 rounded-lg hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/20 active:scale-[0.98] flex items-center justify-center gap-2 text-sm"
+                className="w-full sm:w-auto bg-indigo-600 text-white font-bold py-3.5 px-8 rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98] flex items-center justify-center gap-2"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                 </svg>
                 {t("saveSettings")}
@@ -1802,19 +1812,19 @@ const AdminView: React.FC<AdminViewProps> = ({
       {showRuleForm && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowRuleForm(false)} />
-          <div className={`relative bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto ${isRtl ? "rtl" : ""}`}>
-            <div className="px-4 py-3 border-b border-gray-100">
-              <h3 className="text-base font-bold text-gray-900">
+          <div className={`relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto ${isRtl ? "rtl" : ""}`}>
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900">
                 {isEditingRule
                   ? (isRtl ? "تعديل قاعدة الخصم" : "Edit Discount Rule")
                   : (isRtl ? "إضافة قاعدة خصم" : "Add Discount Rule")}
               </h3>
             </div>
 
-            <div className="p-4 space-y-3">
+            <div className="p-6 space-y-5">
               {/* Rule Name */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   {isRtl ? "اسم القاعدة" : "Rule Name"} *
                 </label>
                 <input
@@ -1822,47 +1832,47 @@ const AdminView: React.FC<AdminViewProps> = ({
                   value={ruleFormData.name || ""}
                   onChange={(e) => setRuleFormData({ ...ruleFormData, name: e.target.value })}
                   placeholder={isRtl ? "مثال: خصم الطلبات الكبيرة" : "e.g., Bulk Order Discount"}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all text-sm"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
                 />
               </div>
 
               {/* Discount Type */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   {isRtl ? "نوع الخصم" : "Discount Type"}
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setRuleFormData({ ...ruleFormData, discount_type: "percent" })}
-                    className={`px-3 py-2 rounded-lg border font-semibold transition-all text-xs ${
+                    className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
                       ruleFormData.discount_type === "percent"
                         ? "border-purple-500 bg-purple-50 text-purple-700"
                         : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
                     }`}
                   >
-                    {isRtl ? "نسبة (%)" : "Percent (%)"}
+                    {isRtl ? "نسبة مئوية (%)" : "Percentage (%)"}
                   </button>
                   <button
                     type="button"
                     onClick={() => setRuleFormData({ ...ruleFormData, discount_type: "fixed" })}
-                    className={`px-3 py-2 rounded-lg border font-semibold transition-all text-xs ${
+                    className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
                       ruleFormData.discount_type === "fixed"
                         ? "border-purple-500 bg-purple-50 text-purple-700"
                         : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
                     }`}
                   >
-                    {isRtl ? "مبلغ ثابت" : "Fixed Amount"}
+                    {isRtl ? "مبلغ ثابت (DZD)" : "Fixed Amount (DZD)"}
                   </button>
                 </div>
               </div>
 
               {/* Discount Value */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   {ruleFormData.discount_type === "percent"
-                    ? (isRtl ? "نسبة" : "Percent")
-                    : (isRtl ? "المبلغ" : "Amount")}
+                    ? (isRtl ? "نسبة الخصم" : "Discount Percentage")
+                    : (isRtl ? "مبلغ الخصم" : "Discount Amount")}
                 </label>
                 <div className="relative">
                   <input
@@ -1871,9 +1881,9 @@ const AdminView: React.FC<AdminViewProps> = ({
                     step={ruleFormData.discount_type === "percent" ? "1" : "0.01"}
                     value={ruleFormData.discount_value || ""}
                     onChange={(e) => setRuleFormData({ ...ruleFormData, discount_value: parseFloat(e.target.value) })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all text-sm"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold">
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">
                     {ruleFormData.discount_type === "percent" ? "%" : "DZD"}
                   </span>
                 </div>
@@ -1881,41 +1891,41 @@ const AdminView: React.FC<AdminViewProps> = ({
 
               {/* Condition Type */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   {isRtl ? "الشرط" : "Condition"}
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setRuleFormData({ ...ruleFormData, condition_type: "pages" })}
-                    className={`px-3 py-2 rounded-lg border font-semibold transition-all text-xs ${
+                    className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
                       ruleFormData.condition_type === "pages"
                         ? "border-purple-500 bg-purple-50 text-purple-700"
                         : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
                     }`}
                   >
-                    {isRtl ? "الصفحات" : "Pages"}
+                    {isRtl ? "عدد الصفحات" : "Page Count"}
                   </button>
                   <button
                     type="button"
                     onClick={() => setRuleFormData({ ...ruleFormData, condition_type: "amount" })}
-                    className={`px-3 py-2 rounded-lg border font-semibold transition-all text-xs ${
+                    className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
                       ruleFormData.condition_type === "amount"
                         ? "border-purple-500 bg-purple-50 text-purple-700"
                         : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
                     }`}
                   >
-                    {isRtl ? "المبلغ" : "Amount"}
+                    {isRtl ? "المبلغ الإجمالي" : "Total Amount"}
                   </button>
                 </div>
               </div>
 
               {/* Threshold */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   {ruleFormData.condition_type === "pages"
-                    ? (isRtl ? "الحد الأدنى" : "Min Pages")
-                    : (isRtl ? "الحد الأدنى" : "Min Amount")}
+                    ? (isRtl ? "الحد الأدنى للصفحات" : "Minimum Pages")
+                    : (isRtl ? "الحد الأدنى للمبلغ" : "Minimum Amount")}
                 </label>
                 <div className="relative">
                   <input
@@ -1923,63 +1933,65 @@ const AdminView: React.FC<AdminViewProps> = ({
                     min="1"
                     value={ruleFormData.threshold || ""}
                     onChange={(e) => setRuleFormData({ ...ruleFormData, threshold: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all text-sm"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold">
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">
                     {ruleFormData.condition_type === "pages"
-                      ? (isRtl ? "ص" : "p")
+                      ? (isRtl ? "صفحة" : "pages")
                       : "DZD"}
                   </span>
                 </div>
               </div>
 
-              {/* Max Cap & Priority - side by side */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    {isRtl ? "الحد الأقصى" : "Max Cap"}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={ruleFormData.max_discount_cap || ""}
-                      onChange={(e) => setRuleFormData({ ...ruleFormData, max_discount_cap: e.target.value ? parseFloat(e.target.value) : null })}
-                      placeholder={isRtl ? "لا نهائي" : "∞"}
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all text-sm"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-semibold">DZD</span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    {isRtl ? "الأولوية" : "Priority"}
-                  </label>
+              {/* Max Cap (Optional) */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  {isRtl ? "الحد الأقصى للخصم (اختياري)" : "Max Discount Cap (Optional)"}
+                </label>
+                <div className="relative">
                   <input
                     type="number"
                     min="0"
-                    value={ruleFormData.priority || 0}
-                    onChange={(e) => setRuleFormData({ ...ruleFormData, priority: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all text-sm"
+                    step="0.01"
+                    value={ruleFormData.max_discount_cap || ""}
+                    onChange={(e) => setRuleFormData({ ...ruleFormData, max_discount_cap: e.target.value ? parseFloat(e.target.value) : null })}
+                    placeholder={isRtl ? "بدون حد أقصى" : "No cap"}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
                   />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">DZD</span>
                 </div>
+              </div>
+
+              {/* Priority */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  {isRtl ? "الأولوية" : "Priority"}
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={ruleFormData.priority || 0}
+                  onChange={(e) => setRuleFormData({ ...ruleFormData, priority: parseInt(e.target.value) || 0 })}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  {isRtl ? "أرقام أعلى = أولوية أعلى" : "Higher numbers = higher priority"}
+                </p>
               </div>
             </div>
 
-            <div className="px-4 py-3 border-t border-gray-100 flex gap-2">
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
               <button
                 onClick={handleSaveRule}
-                className="flex-1 bg-purple-600 text-white font-bold py-2 rounded-lg hover:bg-purple-700 transition-all text-sm"
+                className="flex-1 bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 transition-all"
               >
                 {isEditingRule
-                  ? (isRtl ? "حفظ" : "Save")
-                  : (isRtl ? "إنشاء" : "Create")}
+                  ? (isRtl ? "حفظ التغييرات" : "Save Changes")
+                  : (isRtl ? "إنشاء القاعدة" : "Create Rule")}
               </button>
               <button
                 onClick={() => setShowRuleForm(false)}
-                className="flex-1 bg-gray-100 text-gray-700 font-bold py-2 rounded-lg hover:bg-gray-200 transition-all text-sm"
+                className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 transition-all"
               >
                 {isRtl ? "إلغاء" : "Cancel"}
               </button>
