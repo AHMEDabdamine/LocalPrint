@@ -14,6 +14,95 @@ interface ImageEditorProps {
   onCancel: () => void;
 }
 
+function computeHomography(
+  src: { x: number; y: number }[],
+  dst: { x: number; y: number }[],
+): number[] {
+  const A: number[][] = [];
+  const b: number[] = [];
+  for (let i = 0; i < 4; i++) {
+    const { x: X, y: Y } = src[i];
+    const { x: u, y: v } = dst[i];
+    A.push([X, Y, 1, 0, 0, 0, -u * X, -u * Y]);
+    b.push(u);
+    A.push([0, 0, 0, X, Y, 1, -v * X, -v * Y]);
+    b.push(v);
+  }
+  const h = gaussianElimination(A, b);
+  return [...h, 1];
+}
+
+function applyHomography(H: number[], x: number, y: number): [number, number] {
+  const w = H[6] * x + H[7] * y + H[8];
+  return [
+    (H[0] * x + H[1] * y + H[2]) / w,
+    (H[3] * x + H[4] * y + H[5]) / w,
+  ];
+}
+
+function gaussianElimination(A: number[][], b: number[]): number[] {
+  const n = b.length;
+  const M = A.map((row, i) => [...row, b[i]]);
+  for (let col = 0; col < n; col++) {
+    let maxRow = col;
+    for (let row = col + 1; row < n; row++) {
+      if (Math.abs(M[row][col]) > Math.abs(M[maxRow][col])) maxRow = row;
+    }
+    [M[col], M[maxRow]] = [M[maxRow], M[col]];
+    for (let row = col + 1; row < n; row++) {
+      const factor = M[row][col] / M[col][col];
+      for (let k = col; k <= n; k++) M[row][k] -= factor * M[col][k];
+    }
+  }
+  const x = new Array(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) {
+    x[i] = M[i][n];
+    for (let j = i + 1; j < n; j++) x[i] -= M[i][j] * x[j];
+    x[i] /= M[i][i];
+  }
+  return x;
+}
+
+function invertMatrix3x3(m: number[]): number[] | null {
+  const [a, b, c, d, e, f, g, h, k] = m;
+  const det = a * (e * k - f * h) - b * (d * k - f * g) + c * (d * h - e * g);
+  if (Math.abs(det) < 1e-10) return null;
+  const inv = 1 / det;
+  return [
+    (e * k - f * h) * inv, (c * h - b * k) * inv, (b * f - c * e) * inv,
+    (f * g - d * k) * inv, (a * k - c * g) * inv, (c * d - a * f) * inv,
+    (d * h - e * g) * inv, (b * g - a * h) * inv, (a * e - b * d) * inv,
+  ];
+}
+
+function bilinearSample(
+  src: ImageData,
+  w: number,
+  h: number,
+  x: number,
+  y: number,
+): [number, number, number, number] {
+  const x0 = Math.floor(x), y0 = Math.floor(y);
+  const x1 = x0 + 1, y1 = y0 + 1;
+  const fx = x - x0, fy = y - y0;
+  const clamp = (v: number, max: number) => Math.max(0, Math.min(max - 1, v));
+  const idx = (px: number, py: number) => (clamp(py, h) * w + clamp(px, w)) * 4;
+  const sample = (px: number, py: number): [number, number, number, number] => {
+    const i = idx(px, py);
+    return [src.data[i], src.data[i + 1], src.data[i + 2], src.data[i + 3]];
+  };
+  const tl = sample(x0, y0), tr = sample(x1, y0);
+  const bl = sample(x0, y1), br = sample(x1, y1);
+  return [0, 1, 2, 3].map((c) =>
+    Math.round(
+      tl[c] * (1 - fx) * (1 - fy) +
+      tr[c] * fx * (1 - fy) +
+      bl[c] * (1 - fx) * fy +
+      br[c] * fx * fy,
+    ),
+  ) as [number, number, number, number];
+}
+
 const ImageEditor: React.FC<ImageEditorProps> = ({
   imageBlob,
   lang,
@@ -339,53 +428,81 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
   const handleApply = async () => {
     if (!image || !canvasRef.current) return;
     setIsProcessing(true);
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
 
     const scale = image.width / baseSize.width;
 
     if (mode === "crop") {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
       canvas.width = cropRect.w * scale;
       canvas.height = cropRect.h * scale;
       ctx.drawImage(
         image,
-        cropRect.x * scale,
-        cropRect.y * scale,
-        cropRect.w * scale,
-        cropRect.h * scale,
-        0,
-        0,
-        canvas.width,
-        canvas.height,
+        cropRect.x * scale, cropRect.y * scale,
+        cropRect.w * scale, cropRect.h * scale,
+        0, 0, canvas.width, canvas.height,
       );
-    } else {
-      const minX = Math.min(...points.map((p) => p.x)) * scale;
-      const minY = Math.min(...points.map((p) => p.y)) * scale;
-      const maxX = Math.max(...points.map((p) => p.x)) * scale;
-      const maxY = Math.max(...points.map((p) => p.y)) * scale;
-      canvas.width = maxX - minX;
-      canvas.height = maxY - minY;
-      ctx.drawImage(
-        image,
-        minX,
-        minY,
-        canvas.width,
-        canvas.height,
-        0,
-        0,
-        canvas.width,
-        canvas.height,
-      );
-    }
+      canvas.toBlob((blob) => {
+        setIsProcessing(false);
+        if (blob) { setPendingBlob(blob); setShowConfirm(true); }
+      }, imageBlob.type);
 
-    canvas.toBlob((blob) => {
-      setIsProcessing(false);
-      if (blob) {
-        setPendingBlob(blob);
-        setShowConfirm(true);
+    } else {
+      const src = points.map((p) => ({ x: p.x * scale, y: p.y * scale }));
+
+      const outW = Math.round(Math.max(
+        Math.hypot(src[1].x - src[0].x, src[1].y - src[0].y),
+        Math.hypot(src[2].x - src[3].x, src[2].y - src[3].y),
+      ));
+      const outH = Math.round(Math.max(
+        Math.hypot(src[3].x - src[0].x, src[3].y - src[0].y),
+        Math.hypot(src[2].x - src[1].x, src[2].y - src[1].y),
+      ));
+
+      const dst = [
+        { x: 0,    y: 0    },
+        { x: outW, y: 0    },
+        { x: outW, y: outH },
+        { x: 0,    y: outH },
+      ];
+
+      const H = computeHomography(src, dst);
+      const H_inv = invertMatrix3x3(H);
+      if (!H_inv) { setIsProcessing(false); return; }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = outW;
+      canvas.height = outH;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const srcCanvas = document.createElement("canvas");
+      srcCanvas.width = image.width;
+      srcCanvas.height = image.height;
+      const srcCtx = srcCanvas.getContext("2d")!;
+      srcCtx.drawImage(image, 0, 0);
+      const srcData = srcCtx.getImageData(0, 0, image.width, image.height);
+      const outData = ctx.createImageData(outW, outH);
+
+      for (let dy = 0; dy < outH; dy++) {
+        for (let dx = 0; dx < outW; dx++) {
+          const [sx, sy] = applyHomography(H_inv, dx + 0.5, dy + 0.5);
+          const color = bilinearSample(srcData, image.width, image.height, sx, sy);
+          const i = (dy * outW + dx) * 4;
+          outData.data[i]     = color[0];
+          outData.data[i + 1] = color[1];
+          outData.data[i + 2] = color[2];
+          outData.data[i + 3] = color[3];
+        }
       }
-    }, imageBlob.type);
+
+      ctx.putImageData(outData, 0, 0);
+      canvas.toBlob((blob) => {
+        setIsProcessing(false);
+        if (blob) { setPendingBlob(blob); setShowConfirm(true); }
+      }, imageBlob.type);
+    }
   };
 
   const confirmSave = () => {

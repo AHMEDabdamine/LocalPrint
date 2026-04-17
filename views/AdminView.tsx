@@ -1644,8 +1644,10 @@ const AdminView: React.FC<AdminViewProps> = ({
                             }`}
                           >
                             <div
-                              className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${
-                                rule.is_active ? (isRtl ? "right-1" : "left-7") : (isRtl ? "left-7" : "left-1")
+                              className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300 ease-in-out ${
+                                isRtl
+                                  ? (rule.is_active ? "right-7" : "right-1")
+                                  : (rule.is_active ? "left-7" : "left-1")
                               }`}
                             />
                           </button>
@@ -1808,197 +1810,200 @@ const AdminView: React.FC<AdminViewProps> = ({
         isRtl={isRtl}
       />
 
-      {/* Rule Form Modal */}
-      {showRuleForm && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowRuleForm(false)} />
-          <div className={`relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto ${isRtl ? "rtl" : ""}`}>
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900">
-                {isEditingRule
-                  ? (isRtl ? "تعديل قاعدة الخصم" : "Edit Discount Rule")
-                  : (isRtl ? "إضافة قاعدة خصم" : "Add Discount Rule")}
-              </h3>
-            </div>
+{/* Rule Form Modal */}
+{showRuleForm && (
+  <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowRuleForm(false)} />
+    <div className={`relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto ${isRtl ? "rtl" : ""}`}>
+      <div className="px-6 py-4 border-b border-gray-100">
+        <h3 className="text-lg font-bold text-gray-900">
+          {isEditingRule
+            ? (isRtl ? "تعديل قاعدة الخصم" : "Edit Discount Rule")
+            : (isRtl ? "إضافة قاعدة خصم" : "Add Discount Rule")}
+        </h3>
+      </div>
 
-            <div className="p-6 space-y-5">
-              {/* Rule Name */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {isRtl ? "اسم القاعدة" : "Rule Name"} *
-                </label>
-                <input
-                  type="text"
-                  value={ruleFormData.name || ""}
-                  onChange={(e) => setRuleFormData({ ...ruleFormData, name: e.target.value })}
-                  placeholder={isRtl ? "مثال: خصم الطلبات الكبيرة" : "e.g., Bulk Order Discount"}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                />
-              </div>
+      <div className="p-6 space-y-5">
+        {/* Rule Name */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            {isRtl ? "اسم القاعدة" : "Rule Name"} *
+          </label>
+          <input
+            type="text"
+            value={ruleFormData.name || ""}
+            onChange={(e) => setRuleFormData({ ...ruleFormData, name: e.target.value })}
+            placeholder={isRtl ? "مثال: خصم الطلبات الكبيرة" : "e.g., Bulk Order Discount"}
+            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+          />
+        </div>
 
-              {/* Discount Type */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {isRtl ? "نوع الخصم" : "Discount Type"}
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setRuleFormData({ ...ruleFormData, discount_type: "percent" })}
-                    className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
-                      ruleFormData.discount_type === "percent"
-                        ? "border-purple-500 bg-purple-50 text-purple-700"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    {isRtl ? "نسبة مئوية (%)" : "Percentage (%)"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRuleFormData({ ...ruleFormData, discount_type: "fixed" })}
-                    className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
-                      ruleFormData.discount_type === "fixed"
-                        ? "border-purple-500 bg-purple-50 text-purple-700"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    {isRtl ? "مبلغ ثابت (DZD)" : "Fixed Amount (DZD)"}
-                  </button>
-                </div>
-              </div>
-
-              {/* Discount Value */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {ruleFormData.discount_type === "percent"
-                    ? (isRtl ? "نسبة الخصم" : "Discount Percentage")
-                    : (isRtl ? "مبلغ الخصم" : "Discount Amount")}
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    step={ruleFormData.discount_type === "percent" ? "1" : "0.01"}
-                    value={ruleFormData.discount_value || ""}
-                    onChange={(e) => setRuleFormData({ ...ruleFormData, discount_value: parseFloat(e.target.value) })}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">
-                    {ruleFormData.discount_type === "percent" ? "%" : "DZD"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Condition Type */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {isRtl ? "الشرط" : "Condition"}
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setRuleFormData({ ...ruleFormData, condition_type: "pages" })}
-                    className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
-                      ruleFormData.condition_type === "pages"
-                        ? "border-purple-500 bg-purple-50 text-purple-700"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    {isRtl ? "عدد الصفحات" : "Page Count"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRuleFormData({ ...ruleFormData, condition_type: "amount" })}
-                    className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
-                      ruleFormData.condition_type === "amount"
-                        ? "border-purple-500 bg-purple-50 text-purple-700"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    {isRtl ? "المبلغ الإجمالي" : "Total Amount"}
-                  </button>
-                </div>
-              </div>
-
-              {/* Threshold */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {ruleFormData.condition_type === "pages"
-                    ? (isRtl ? "الحد الأدنى للصفحات" : "Minimum Pages")
-                    : (isRtl ? "الحد الأدنى للمبلغ" : "Minimum Amount")}
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="1"
-                    value={ruleFormData.threshold || ""}
-                    onChange={(e) => setRuleFormData({ ...ruleFormData, threshold: parseInt(e.target.value) })}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">
-                    {ruleFormData.condition_type === "pages"
-                      ? (isRtl ? "صفحة" : "pages")
-                      : "DZD"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Max Cap (Optional) */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {isRtl ? "الحد الأقصى للخصم (اختياري)" : "Max Discount Cap (Optional)"}
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={ruleFormData.max_discount_cap || ""}
-                    onChange={(e) => setRuleFormData({ ...ruleFormData, max_discount_cap: e.target.value ? parseFloat(e.target.value) : null })}
-                    placeholder={isRtl ? "بدون حد أقصى" : "No cap"}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">DZD</span>
-                </div>
-              </div>
-
-              {/* Priority */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {isRtl ? "الأولوية" : "Priority"}
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={ruleFormData.priority || 0}
-                  onChange={(e) => setRuleFormData({ ...ruleFormData, priority: parseInt(e.target.value) || 0 })}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  {isRtl ? "أرقام أعلى = أولوية أعلى" : "Higher numbers = higher priority"}
-                </p>
-              </div>
-            </div>
-
-            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
-              <button
-                onClick={handleSaveRule}
-                className="flex-1 bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 transition-all"
-              >
-                {isEditingRule
-                  ? (isRtl ? "حفظ التغييرات" : "Save Changes")
-                  : (isRtl ? "إنشاء القاعدة" : "Create Rule")}
-              </button>
-              <button
-                onClick={() => setShowRuleForm(false)}
-                className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 transition-all"
-              >
-                {isRtl ? "إلغاء" : "Cancel"}
-              </button>
-            </div>
+        {/* Discount Type */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            {isRtl ? "نوع الخصم" : "Discount Type"}
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setRuleFormData({ ...ruleFormData, discount_type: "percent" })}
+              className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
+                ruleFormData.discount_type === "percent"
+                  ? "border-purple-500 bg-purple-50 text-purple-700"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+              }`}
+            >
+              {isRtl ? "نسبة مئوية (%)" : "Percentage (%)"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setRuleFormData({ ...ruleFormData, discount_type: "fixed" })}
+              className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
+                ruleFormData.discount_type === "fixed"
+                  ? "border-purple-500 bg-purple-50 text-purple-700"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+              }`}
+            >
+              {isRtl ? "مبلغ ثابت (DZD)" : "Fixed Amount (DZD)"}
+            </button>
           </div>
         </div>
-      )}
+
+        {/* Discount Value */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            {ruleFormData.discount_type === "percent"
+              ? (isRtl ? "نسبة الخصم" : "Discount Percentage")
+              : (isRtl ? "مبلغ الخصم" : "Discount Amount")}
+          </label>
+          <div className="relative">
+            <input
+              type="number"
+              min="0"
+              step={ruleFormData.discount_type === "percent" ? "1" : "0.01"}
+              value={ruleFormData.discount_value || ""}
+              onChange={(e) => setRuleFormData({ ...ruleFormData, discount_value: parseFloat(e.target.value) })}
+              placeholder={ruleFormData.discount_type === "percent" ? (isRtl ? "مثال: 10" : "e.g. 10") : (isRtl ? "مثال: 50" : "e.g. 50")}
+              className={`w-full px-4 py-3 ${isRtl ? "pl-16 pr-4" : "pr-16 pl-4"} bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all`}
+            />
+            <span className={`absolute ${isRtl ? "left-4" : "right-4"} top-1/2 -translate-y-1/2 text-gray-400 font-semibold pointer-events-none`}>
+              {ruleFormData.discount_type === "percent" ? "%" : "DZD"}
+            </span>
+          </div>
+        </div>
+
+        {/* Condition Type */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            {isRtl ? "الشرط" : "Condition"}
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setRuleFormData({ ...ruleFormData, condition_type: "pages" })}
+              className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
+                ruleFormData.condition_type === "pages"
+                  ? "border-purple-500 bg-purple-50 text-purple-700"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+              }`}
+            >
+              {isRtl ? "عدد الصفحات" : "Page Count"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setRuleFormData({ ...ruleFormData, condition_type: "amount" })}
+              className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
+                ruleFormData.condition_type === "amount"
+                  ? "border-purple-500 bg-purple-50 text-purple-700"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+              }`}
+            >
+              {isRtl ? "المبلغ الإجمالي" : "Total Amount"}
+            </button>
+          </div>
+        </div>
+
+        {/* Threshold */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            {ruleFormData.condition_type === "pages"
+              ? (isRtl ? "الحد الأدنى للصفحات" : "Minimum Pages")
+              : (isRtl ? "الحد الأدنى للمبلغ" : "Minimum Amount")}
+          </label>
+          <div className="relative">
+            <input
+              type="number"
+              min="1"
+              value={ruleFormData.threshold || ""}
+              onChange={(e) => setRuleFormData({ ...ruleFormData, threshold: parseInt(e.target.value) })}
+              className={`w-full px-4 py-3 ${isRtl ? "pl-20 pr-4" : "pr-20 pl-4"} bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all`}
+            />
+            <span className={`absolute ${isRtl ? "left-4" : "right-4"} top-1/2 -translate-y-1/2 text-gray-400 font-semibold pointer-events-none`}>
+              {ruleFormData.condition_type === "pages"
+                ? (isRtl ? "صفحة" : "pages")
+                : "DZD"}
+            </span>
+          </div>
+        </div>
+
+        {/* Max Cap (Optional) */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            {isRtl ? "الحد الأقصى للخصم (اختياري)" : "Max Discount Cap (Optional)"}
+          </label>
+          <div className="relative">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={ruleFormData.max_discount_cap || ""}
+              onChange={(e) => setRuleFormData({ ...ruleFormData, max_discount_cap: e.target.value ? parseFloat(e.target.value) : null })}
+              placeholder={isRtl ? "بدون حد أقصى" : "No cap"}
+              className={`w-full px-4 py-3 ${isRtl ? "pl-16 pr-4" : "pr-16 pl-4"} bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all`}
+            />
+            <span className={`absolute ${isRtl ? "left-4" : "right-4"} top-1/2 -translate-y-1/2 text-gray-400 font-semibold pointer-events-none`}>
+              DZD
+            </span>
+          </div>
+        </div>
+
+        {/* Priority */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            {isRtl ? "الأولوية" : "Priority"}
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={ruleFormData.priority || 0}
+            onChange={(e) => setRuleFormData({ ...ruleFormData, priority: parseInt(e.target.value) || 0 })}
+            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            {isRtl ? "أرقام أعلى = أولوية أعلى" : "Higher numbers = higher priority"}
+          </p>
+        </div>
+      </div>
+
+      <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+        <button
+          onClick={handleSaveRule}
+          className="flex-1 bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 transition-all"
+        >
+          {isEditingRule
+            ? (isRtl ? "حفظ التغييرات" : "Save Changes")
+            : (isRtl ? "إنشاء القاعدة" : "Create Rule")}
+        </button>
+        <button
+          onClick={() => setShowRuleForm(false)}
+          className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 transition-all"
+        >
+          {isRtl ? "إلغاء" : "Cancel"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };

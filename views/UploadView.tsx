@@ -69,6 +69,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
     [jobId: string]: number;
   }>({});
   const [discountRules, setDiscountRules] = useState<DiscountRule[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -618,11 +619,49 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
             {t("selectFile")}
           </label>
           <div
-            onClick={() => !isUploading && fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-200 ${isUploading
-              ? "opacity-50 cursor-not-allowed border-gray-200"
-              : "border-indigo-200 bg-indigo-50/30 hover:bg-indigo-50 hover:border-indigo-400 hover:shadow-md"
-              }`}
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDragging(true);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDragging(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDragging(false);
+              const files = Array.from(e.dataTransfer.files);
+              if (files.length > 0) {
+                const newFileStatuses: FileStatus[] = [];
+                let hasError = false;
+                for (const file of files) {
+                  if (!ALLOWED_TYPES.includes(file.type)) {
+                    setError(t("fileLimit"));
+                    hasError = true;
+                    break;
+                  }
+                  newFileStatuses.push({
+                    file,
+                    progress: 0,
+                    status: "pending",
+                    id: generateSafeId(),
+                  });
+                }
+                if (!hasError) {
+                  setSelectedFiles((prev) => [...prev, ...newFileStatuses]);
+                  setError(null);
+                }
+              }
+            }}
+            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+              isDragging
+                ? "border-blue-500 bg-blue-50"
+                : "border-gray-300 hover:border-gray-400"
+            }`}
           >
             <input
               type="file"
