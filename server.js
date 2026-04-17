@@ -6,6 +6,8 @@ import { fileURLToPath } from "url";
 import os from "os";
 import { PDFDocument } from "pdf-lib";
 
+import db, { getSettings, updateSetting } from './db.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -17,7 +19,6 @@ const PORT = process.env.PORT || (isDev ? 3001 : 3000);
 // Path configuration
 const DIST_DIR = path.join(__dirname, "dist");
 const UPLOADS_DIR = path.join(__dirname, "uploads");
-const DB_FILE = path.join(__dirname, "db.json");
 
 const app = express();
 
@@ -48,43 +49,8 @@ if (!fs.existsSync(DIST_DIR) && !isDev) {
 }
 
 /**
- * DATABASE PERSISTENCE LAYER
+ * PDF Page Count Helper — uses pdf-lib for accurate counting.
  */
-let dbCache = {
-  jobs: [],
-  settings: {
-    shopName: "PrintShop Hub",
-    logoUrl: null,
-    pricing: { colorPerPage: 30.0, blackWhitePerPage: 15.0 },
-  },
-};
-
-const saveDB = () => {
-  try {
-    const data = JSON.stringify(dbCache, null, 2);
-    fs.writeFileSync(DB_FILE, data, "utf-8");
-  } catch (err) {
-    console.error("❌ Failed to save DB:", err);
-  }
-};
-
-const loadDB = () => {
-  try {
-    if (fs.existsSync(DB_FILE)) {
-      const data = fs.readFileSync(DB_FILE, "utf-8");
-      if (data.trim()) {
-        dbCache = JSON.parse(data);
-        console.log("✅ Database loaded successfully");
-      }
-    } else {
-      saveDB();
-      console.log("✅ New database created");
-    }
-  } catch (err) {
-    console.error("❌ Failed to load DB, using defaults:", err);
-    saveDB();
-  }
-};
 
 /**
  * PDF Page Count Helper — uses pdf-lib for accurate counting.
@@ -121,10 +87,12 @@ const getPdfPageCount = async (filePath) => {
 
 // Backfill missing pageCount for existing PDF jobs (runs once at startup)
 const backfillPageCounts = async () => {
-  // Ensure dbCache.jobs exists after loadDB()
-  const pdfJobsMissingCount = (dbCache.jobs || []).filter(
-    (j) => j.fileType === "application/pdf" && !j.pageCount,
-  );
+  const pdfJobsMissingCount = db.prepare(`
+    SELECT * FROM jobs 
+    WHERE fileType = 'application/pdf' 
+    AND (pageCount IS NULL OR pageCount = 0)
+  `).all();
+
   if (pdfJobsMissingCount.length === 0) {
     console.log("✅ All PDF jobs already have page counts.");
     return;
@@ -133,7 +101,8 @@ const backfillPageCounts = async () => {
   console.log(
     `📚 Backfilling page counts for ${pdfJobsMissingCount.length} PDF job(s)...`,
   );
-  let changed = false;
+
+  const updateStmt = db.prepare('UPDATE jobs SET pageCount = ? WHERE id = ?');
 
   for (const job of pdfJobsMissingCount) {
     if (!job.serverFileName) {
@@ -144,8 +113,7 @@ const backfillPageCounts = async () => {
     if (fs.existsSync(filePath)) {
       const count = await getPdfPageCount(filePath);
       if (count !== null) {
-        job.pageCount = count;
-        changed = true;
+        updateStmt.run(count, job.id);
         console.log(`  ✅ ${job.fileName}: ${count} page(s)`);
       } else {
         console.warn(
@@ -158,15 +126,9 @@ const backfillPageCounts = async () => {
       );
     }
   }
-
-  if (changed) {
-    saveDB();
-    console.log("💾 Page counts saved to database.");
-  }
 };
 
-loadDB();
-// Run backfill after DB is loaded (non-blocking — won't block server startup)
+// Run backfill (non-blocking — won't block server startup)
 backfillPageCounts().catch((err) => console.error("❌ Backfill error:", err));
 
 // Multer configuration
@@ -204,7 +166,16 @@ app.get("/api/health", (req, res) => {
 
 // Get all jobs
 app.get("/api/jobs", (req, res) => {
-  res.status(200).json(dbCache.jobs || []);
+  const jobs = db.prepare('SELECT * FROM jobs ORDER BY uploadDate DESC').all();
+  // Map SQLite flat columns back to printPreferences object for frontend compatibility
+  const formattedJobs = jobs.map(job => ({
+    ...job,
+    printPreferences: {
+      colorMode: job.colorMode,
+      copies: job.copies
+    }
+  }));
+  res.status(200).json(formattedJobs);
 });
 
 // Upload new job
@@ -234,8 +205,30 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
       pageCount: pageCount,
     };
 
-    dbCache.jobs.push(newJob);
-    saveDB();
+    const insertStmt = db.prepare(`
+      INSERT INTO jobs (
+        id, customerName, phoneNumber, notes, fileName, fileType, 
+        fileSize, uploadDate, status, serverFileName, pageCount, 
+        colorMode, copies
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertStmt.run(
+      newJob.id,
+      newJob.customerName,
+      newJob.phoneNumber,
+      newJob.notes,
+      newJob.fileName,
+      newJob.fileType,
+      newJob.fileSize,
+      newJob.uploadDate,
+      newJob.status,
+      newJob.serverFileName,
+      newJob.pageCount,
+      newJob.printPreferences?.colorMode || 'color',
+      newJob.printPreferences?.copies || 1
+    );
+
     res.status(200).json({ success: true, job: newJob });
   } catch (err) {
     console.error("❌ Upload Error:", err);
@@ -247,7 +240,7 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
 app.post("/api/jobs/:id/file", upload.single("file"), async (req, res) => {
   try {
     const jobId = req.params.id;
-    const job = dbCache.jobs.find((j) => j.id === jobId);
+    const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(jobId);
 
     if (!job) {
       return res.status(404).json({ success: false, error: "Job not found" });
@@ -277,14 +270,16 @@ app.post("/api/jobs/:id/file", upload.single("file"), async (req, res) => {
       pageCount = await getPdfPageCount(filePath);
     }
 
-    // Update job
-    job.serverFileName = req.file.filename;
-    job.fileSize = req.file.size;
-    job.fileType = req.file.mimetype;
-    job.pageCount = pageCount;
+    // Update job in DB
+    const updateStmt = db.prepare(`
+      UPDATE jobs 
+      SET serverFileName = ?, fileSize = ?, fileType = ?, pageCount = ? 
+      WHERE id = ?
+    `);
+    updateStmt.run(req.file.filename, req.file.size, req.file.mimetype, pageCount, jobId);
 
-    saveDB();
-    res.status(200).json({ success: true, job });
+    const updatedJob = db.prepare('SELECT * FROM jobs WHERE id = ?').get(jobId);
+    res.status(200).json({ success: true, job: updatedJob });
   } catch (err) {
     console.error("❌ Update File Error:", err);
     res.status(500).json({ success: false, error: "Internal server error" });
@@ -294,12 +289,13 @@ app.post("/api/jobs/:id/file", upload.single("file"), async (req, res) => {
 // Update job status
 app.put("/api/jobs/:id/status", (req, res) => {
   const { status } = req.body;
-  const job = dbCache.jobs.find((j) => j.id === req.params.id);
+  const jobId = req.params.id;
+  
+  const result = db.prepare('UPDATE jobs SET status = ? WHERE id = ?').run(status, jobId);
 
-  if (job) {
-    job.status = status;
-    saveDB();
-    res.status(200).json({ success: true, job });
+  if (result.changes > 0) {
+    const updatedJob = db.prepare('SELECT * FROM jobs WHERE id = ?').get(jobId);
+    res.status(200).json({ success: true, job: updatedJob });
   } else {
     res.status(404).json({ success: false, error: "Job not found" });
   }
@@ -307,39 +303,48 @@ app.put("/api/jobs/:id/status", (req, res) => {
 
 // Update job print preferences (colorMode, copies)
 app.put("/api/jobs/:id/preferences", (req, res) => {
-  const job = dbCache.jobs.find((j) => j.id === req.params.id);
+  const jobId = req.params.id;
+  const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(jobId);
+  
   if (!job) {
     return res.status(404).json({ success: false, error: "Job not found" });
   }
 
   const { colorMode, copies } = req.body;
-
-  if (!job.printPreferences) {
-    job.printPreferences = { colorMode: "color", copies: 1 };
-  }
+  let finalColorMode = job.colorMode;
+  let finalCopies = job.copies;
 
   if (colorMode === "color" || colorMode === "blackWhite") {
-    job.printPreferences.colorMode = colorMode;
+    finalColorMode = colorMode;
   }
 
   const parsedCopies = parseInt(copies, 10);
   if (!isNaN(parsedCopies) && parsedCopies >= 1 && parsedCopies <= 100) {
-    job.printPreferences.copies = parsedCopies;
+    finalCopies = parsedCopies;
   }
 
-  saveDB();
+  db.prepare('UPDATE jobs SET colorMode = ?, copies = ? WHERE id = ?')
+    .run(finalColorMode, finalCopies, jobId);
+
+  const updatedJob = db.prepare('SELECT * FROM jobs WHERE id = ?').get(jobId);
   console.log(
-    `✏️  Updated preferences for job ${job.id}: ${job.printPreferences.colorMode}, ${job.printPreferences.copies} cop(ies)`,
+    `✏️  Updated preferences for job ${jobId}: ${finalColorMode}, ${finalCopies} cop(ies)`,
   );
-  res.status(200).json({ success: true, job });
+  res.status(200).json({ 
+    success: true, 
+    job: {
+      ...updatedJob,
+      printPreferences: { colorMode: finalColorMode, copies: finalCopies }
+    } 
+  });
 });
 
 // Delete job
 app.delete("/api/jobs/:id", (req, res) => {
-  const index = dbCache.jobs.findIndex((j) => j.id === req.params.id);
+  const jobId = req.params.id;
+  const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(jobId);
 
-  if (index !== -1) {
-    const job = dbCache.jobs[index];
+  if (job) {
     const filePath = path.join(UPLOADS_DIR, job.serverFileName);
 
     // Delete physical file
@@ -351,8 +356,7 @@ app.delete("/api/jobs/:id", (req, res) => {
       console.warn("⚠️  Could not delete physical file:", filePath);
     }
 
-    dbCache.jobs.splice(index, 1);
-    saveDB();
+    db.prepare('DELETE FROM jobs WHERE id = ?').run(jobId);
     res.status(200).json({ success: true });
   } else {
     res.status(404).json({ success: false, error: "Job not found" });
@@ -372,29 +376,35 @@ app.get("/api/files/:filename", (req, res) => {
 
 // Get settings
 app.get("/api/settings", (req, res) => {
-  res.status(200).json(dbCache.settings);
+  res.status(200).json(getSettings());
 });
 
 // Update settings
 app.post("/api/settings", (req, res) => {
   try {
     if (req.body.shopName !== undefined) {
-      dbCache.settings.shopName = req.body.shopName;
+      updateSetting('shopName', req.body.shopName);
     }
     if (req.body.pricing && typeof req.body.pricing === "object") {
-      dbCache.settings.pricing = {
+      const currentSettings = getSettings();
+      const newPricing = {
         colorPerPage:
           parseFloat(req.body.pricing.colorPerPage) ||
-          dbCache.settings.pricing?.colorPerPage ||
+          currentSettings.pricing?.colorPerPage ||
           30.0,
         blackWhitePerPage:
           parseFloat(req.body.pricing.blackWhitePerPage) ||
-          dbCache.settings.pricing?.blackWhitePerPage ||
+          currentSettings.pricing?.blackWhitePerPage ||
           15.0,
       };
+      updateSetting('pricing', newPricing);
     }
-    saveDB();
-    res.status(200).json({ success: true, settings: dbCache.settings });
+    // Also support general setting updates if passed
+    if (req.body.discounts !== undefined) {
+      updateSetting('discounts', req.body.discounts);
+    }
+
+    res.status(200).json({ success: true, settings: getSettings() });
   } catch (err) {
     console.error("❌ Settings update error:", err);
     res
@@ -412,9 +422,10 @@ app.post("/api/settings/logo", upload.single("logo"), (req, res) => {
         .json({ success: false, error: "No file uploaded" });
     }
 
+    const settings = getSettings();
     // Delete old logo
-    if (dbCache.settings.logoUrl) {
-      const oldFilename = dbCache.settings.logoUrl.split("/").pop();
+    if (settings.logoUrl) {
+      const oldFilename = settings.logoUrl.split("/").pop();
       const oldPath = path.join(UPLOADS_DIR, oldFilename);
       if (fs.existsSync(oldPath)) {
         try {
@@ -426,8 +437,7 @@ app.post("/api/settings/logo", upload.single("logo"), (req, res) => {
     }
 
     const logoUrl = `/api/files/${req.file.filename}`;
-    dbCache.settings.logoUrl = logoUrl;
-    saveDB();
+    updateSetting('logoUrl', logoUrl);
     res.status(200).json({ success: true, logoUrl });
   } catch (err) {
     console.error("❌ Logo upload error:", err);
@@ -587,12 +597,12 @@ app.listen(PORT, HOST, () => {
 // Graceful shutdown
 process.on("SIGTERM", () => {
   console.log("\n⏹️  SIGTERM received, shutting down gracefully...");
-  saveDB();
+  db.close();
   process.exit(0);
 });
 
 process.on("SIGINT", () => {
   console.log("\n⏹️  SIGINT received, shutting down gracefully...");
-  saveDB();
+  db.close();
   process.exit(0);
 });
