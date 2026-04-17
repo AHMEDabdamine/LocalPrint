@@ -1,0 +1,143 @@
+{
+  "jobs": [
+    {
+      "id": "7c188tt4jmngn5bf5",
+      "customerName": "علي",
+      "phoneNumber": "0672159461",
+      "notes": "",
+      "fileName": "Screenshot_20260401_011359_One UI Home.jpg",
+      "fileType": "image/jpeg",
+      "fileSize": 1852253,
+      "uploadDate": "2026-04-01T22:52:22.222Z",
+      "status": "PENDING",
+      "printPreferences": {
+        "colorMode": "blackWhite",
+        "copies": 7
+      },
+      "serverFileName": "1775083942032-164646134.jpg",
+      "pageCount": null
+    },
+    {
+      "id": "0q7v86f3cmngnsdra",
+      "customerName": "",
+      "phoneNumber": "",
+      "notes": "",
+      "fileName": "Doc1.pdf",
+      "fileType": "application/pdf",
+      "fileSize": 28273,
+      "uploadDate": "2026-04-01T23:10:18.392Z",
+      "status": "PENDING",
+      "printPreferences": {
+        "colorMode": "color",
+        "copies": 1
+      },
+      "serverFileName": "1775085018343-429722525.pdf",
+      "pageCount": 1
+    },
+    {
+      "id": "6vdl1ch9vmngo7ups",
+      "customerName": "",
+      "phoneNumber": "",
+      "notes": "",
+      "fileName": "FicheDemandeur-NumWassit-103502014080.pdf",
+      "fileType": "application/pdf",
+      "fileSize": 561124,
+      "uploadDate": "2026-04-01T23:22:19.801Z",
+      "status": "PENDING",
+      "printPreferences": {
+        "colorMode": "color",
+        "copies": 1
+      },
+      "serverFileName": "1775085739710-540958024.pdf",
+      "pageCount": 1
+    },
+    {
+      "id": "rds5g17pxmngo7utx",
+      "customerName": "",
+      "phoneNumber": "",
+      "notes": "",
+      "fileName": "Chap1-2-Logique.pdf",
+      "fileType": "application/pdf",
+      "fileSize": 216735,
+      "uploadDate": "2026-04-01T23:22:19.914Z",
+      "status": "PENDING",
+      "printPreferences": {
+        "colorMode": "color",
+        "copies": 1
+      },
+      "serverFileName": "1775085739838-840887570.pdf",
+      "pageCount": 27
+    },
+    {
+      "id": "26x0zoyfxmngo7ux3",
+      "customerName": "",
+      "phoneNumber": "",
+      "notes": "",
+      "fileName": "JS_Presentation_Plan.pdf",
+      "fileType": "application/pdf",
+      "fileSize": 4791,
+      "uploadDate": "2026-04-01T23:22:19.963Z",
+      "status": "PENDING",
+      "printPreferences": {
+        "colorMode": "color",
+        "copies": 1
+      },
+      "serverFileName": "1775085739953-806188652.pdf",
+      "pageCount": 2
+    },
+    {
+      "id": "osbs9har1mngo7uyp",
+      "customerName": "",
+      "phoneNumber": "",
+      "notes": "",
+      "fileName": "JS_Presentation_Plan (1).pdf",
+      "fileType": "application/pdf",
+      "fileSize": 4791,
+      "uploadDate": "2026-04-01T23:22:20.010Z",
+      "status": "PENDING",
+      "printPreferences": {
+        "colorMode": "color",
+        "copies": 1
+      },
+      "serverFileName": "1775085740008-964291088.pdf",
+      "pageCount": 2
+    },
+    {
+      "id": "ipy0cvwo8mnjifeyc",
+      "customerName": "",
+      "phoneNumber": "",
+      "notes": "",
+      "fileName": "ملخص .pdf",
+      "fileType": "application/pdf",
+      "fileSize": 160159,
+      "uploadDate": "2026-04-03T23:03:33.525Z",
+      "status": "PRINTED",
+      "printPreferences": {
+        "colorMode": "color",
+        "copies": 1
+      },
+      "serverFileName": "1775257413500-544214509.pdf",
+      "pageCount": 14
+    }
+  ],
+  "settings": {
+    "shopName": "Final Test",
+    "logoUrl": "/api/files/1775000096430-54376046.png",
+    "pricing": {
+      "colorPerPage": 10,
+      "blackWhitePerPage": 8
+    },
+    "discounts": {
+      "enabled": true,
+      "rules": [
+        {
+          "id": "fypk2p1xu",
+          "type": "page_count",
+          "threshold": 2,
+          "discountValue": 10,
+          "enabled": true
+        }
+      ]
+    }
+  }
+}

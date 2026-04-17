@@ -1,0 +1,11 @@
+{
+  "jobs": [],
+  "settings": {
+    "shopName": "PrintShop Hub",
+    "logoUrl": null,
+    "pricing": {
+      "colorPerPage": 30,
+      "blackWhitePerPage": 15
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import { PrintJob, ShopSettings } from "../types";
+import { PrintJob, ShopSettings, DiscountRule, DiscountResult } from "../types";
 
 export interface PriceCalculation {
   pricePerPage: number;
@@ -147,4 +147,139 @@ export const calculateCustomerTotal = (
     const price = calculatePrintPrice(job, settings, actualPages);
     return total + price.totalPrice;
   }, 0);
+};
+
+/**
+ * Calculate discount for a single job
+ */
+export const calculateJobDiscount = (
+  job: PrintJob,
+  originalPrice: number,
+  pageCount: number,
+  rules: DiscountRule[]
+): DiscountResult => {
+  console.log("calculateJobDiscount called:", { originalPrice, pageCount, rulesCount: rules?.length });
+
+  if (!rules || rules.length === 0) {
+    console.log("No rules provided, returning no discount");
+    return {
+      rule: null,
+      originalAmount: originalPrice,
+      discountAmount: 0,
+      finalAmount: originalPrice,
+      savingsPercentage: 0,
+    };
+  }
+
+  // Filter rules that match this job's conditions
+  const applicableRules = rules.filter((rule) => {
+    console.log("Checking rule:", rule.name, "type:", rule.condition_type, "threshold:", rule.threshold, "is_active:", rule.is_active);
+    if (!rule.is_active) {
+      console.log("  -> Rule not active, skipping");
+      return false;
+    }
+
+    if (rule.condition_type === "pages") {
+      const matches = pageCount >= rule.threshold;
+      console.log(`  -> Pages check: ${pageCount} >= ${rule.threshold} = ${matches}`);
+      return matches;
+    } else if (rule.condition_type === "amount") {
+      const matches = originalPrice >= rule.threshold;
+      console.log(`  -> Amount check: ${originalPrice} >= ${rule.threshold} = ${matches}`);
+      return matches;
+    }
+    return false;
+  });
+
+  console.log("Applicable rules count:", applicableRules.length);
+
+  if (applicableRules.length === 0) {
+    return {
+      rule: null,
+      originalAmount: originalPrice,
+      discountAmount: 0,
+      finalAmount: originalPrice,
+      savingsPercentage: 0,
+    };
+  }
+
+  // Sort by priority (highest first), then by discount value (highest first)
+  const sortedRules = applicableRules.sort((a, b) => {
+    if (b.priority !== a.priority) {
+      return b.priority - a.priority;
+    }
+    // For same priority, prefer percentage discounts (they usually scale better)
+    if (a.discount_type === b.discount_type) {
+      return b.discount_value - a.discount_value;
+    }
+    return a.discount_type === "percent" ? -1 : 1;
+  });
+
+  // Apply the best rule
+  const bestRule = sortedRules[0];
+  let discountAmount = 0;
+
+  if (bestRule.discount_type === "percent") {
+    discountAmount = (originalPrice * bestRule.discount_value) / 100;
+    // Apply max cap if set
+    if (bestRule.max_discount_cap !== null && bestRule.max_discount_cap !== undefined) {
+      discountAmount = Math.min(discountAmount, bestRule.max_discount_cap);
+    }
+  } else {
+    // Fixed amount discount
+    discountAmount = bestRule.discount_value;
+    // Don't discount more than the original price
+    discountAmount = Math.min(discountAmount, originalPrice);
+  }
+
+  const finalAmount = Math.max(0, originalPrice - discountAmount);
+  const savingsPercentage = originalPrice > 0 ? (discountAmount / originalPrice) * 100 : 0;
+
+  return {
+    rule: bestRule,
+    originalAmount: originalPrice,
+    discountAmount,
+    finalAmount,
+    savingsPercentage: Math.round(savingsPercentage * 100) / 100,
+  };
+};
+
+/**
+ * Calculate total with discounts for multiple jobs
+ */
+export const calculateCustomerTotalWithDiscounts = (
+  jobs: PrintJob[],
+  settings: ShopSettings,
+  pageCounts: { [jobId: string]: number },
+  rules: DiscountRule[]
+): {
+  originalTotal: number;
+  totalDiscount: number;
+  finalTotal: number;
+  jobBreakdown: { job: PrintJob; original: number; discount: number; final: number; rule: DiscountRule | null }[];
+} => {
+  const jobBreakdown = jobs.map((job) => {
+    const actualPages = pageCounts[job.id] || 1;
+    const priceCalc = calculatePrintPrice(job, settings, actualPages);
+    const discountResult = calculateJobDiscount(job, priceCalc.totalPrice, actualPages, rules);
+
+    return {
+      job,
+      original: discountResult.originalAmount,
+      discount: discountResult.discountAmount,
+      final: discountResult.finalAmount,
+      rule: discountResult.rule,
+    };
+  });
+
+  const originalTotal = jobBreakdown.reduce((sum, item) => sum + item.original, 0);
+  const totalDiscount = jobBreakdown.reduce((sum, item) => sum + item.discount, 0);
+  const finalTotal = jobBreakdown.reduce((sum, item) => sum + item.final, 0);
+
+  return {
+    originalTotal,
+    totalDiscount,
+    finalTotal,
+    jobBreakdown,
+  };
 };

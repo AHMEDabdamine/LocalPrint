@@ -24,3 +24,4 @@ uploads
 *.sln
 *.sw?
 .env
+env

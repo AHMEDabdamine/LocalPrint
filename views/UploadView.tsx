@@ -1,13 +1,16 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Language, PrintJob, PrintStatus, ShopSettings } from "../types";
+import { Language, PrintJob, PrintStatus, ShopSettings, DiscountRule, DiscountResult } from "../types";
 import { TRANSLATIONS, ALLOWED_TYPES } from "../constants";
 import { storageService } from "../services/storageService";
 import {
   calculatePrintPrice,
   getActualPageCount,
   formatPrice,
+  calculateJobDiscount,
 } from "../utils/pricingUtils";
 import QRCode from "qrcode";
+import ToastContainer, { useToast } from "../components/ToastContainer";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 interface UploadViewProps {
   lang: Language;
@@ -28,6 +31,13 @@ const generateSafeId = () => {
 const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
   const t = (key: string) => TRANSLATIONS[key][lang] || key;
   const isRtl = lang === "ar";
+  const { toasts, success, error: showError, removeToast } = useToast();
+
+  // Confirm dialog state for canceling jobs
+  const [cancelConfirm, setCancelConfirm] = useState<{
+    isOpen: boolean;
+    jobId: string | null;
+  }>({ isOpen: false, jobId: null });
 
   const [formData, setFormData] = useState({
     name: "",
@@ -58,15 +68,19 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
   const [jobPageCounts, setJobPageCounts] = useState<{
     [jobId: string]: number;
   }>({});
+  const [discountRules, setDiscountRules] = useState<DiscountRule[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
-      const [jobs, settings] = await Promise.all([
+      const [jobs, settings, rules] = await Promise.all([
         storageService.getMyRecentJobs(),
         storageService.getSettings(),
+        storageService.getActiveDiscountRules(),
       ]);
       setRecentJobs(jobs);
       setShopSettings(settings);
+      setDiscountRules(rules);
+      console.log("Loaded discount rules:", rules);
 
       // Async page counting for pricing display
       if (settings?.pricing) {
@@ -98,21 +112,67 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
     fetchData();
   }, [overallSuccess]);
 
-  const handleCancelJob = async (id: string) => {
-    if (
-      window.confirm(
-        isRtl
-          ? "هل أنت متأكد من إلغاء هذه الطباعة؟"
-          : "Are you sure you want to cancel this print job?",
-      )
-    ) {
+  const handleCancelJob = (id: string) => {
+    setCancelConfirm({ isOpen: true, jobId: id });
+  };
+
+  const confirmCancelJob = async () => {
+    if (cancelConfirm.jobId) {
       try {
-        await storageService.deleteJob(id);
-        setRecentJobs((prev) => prev.filter((job) => job.id !== id));
+        await storageService.deleteJob(cancelConfirm.jobId);
+        setRecentJobs((prev) => prev.filter((job) => job.id !== cancelConfirm.jobId));
+        success(isRtl ? "تم إلغاء الطباعة بنجاح" : "Print job cancelled successfully");
       } catch (err) {
         console.error("Failed to cancel job", err);
+        showError(isRtl ? "فشل إلغاء الطباعة" : "Failed to cancel print job");
       }
     }
+    setCancelConfirm({ isOpen: false, jobId: null });
+  };
+
+  // Helper to calculate price with discount for a file
+  const getFilePriceWithDiscount = (file: File) => {
+    if (!shopSettings?.pricing) return null;
+
+    const pricePerPage = printPreferences.colorMode === "blackWhite"
+      ? shopSettings.pricing.blackWhitePerPage
+      : shopSettings.pricing.colorPerPage;
+
+    // Estimate page count
+    const estimatedPages = file.type.includes("pdf")
+      ? Math.max(1, Math.ceil(file.size / 75000))
+      : file.type.includes("image")
+      ? 1
+      : Math.max(1, Math.ceil(file.size / 50000));
+
+    const totalPages = estimatedPages * printPreferences.copies;
+    const originalPrice = pricePerPage * totalPages;
+
+    // Debug logging
+    console.log("Calculating discount for file:", file.name, {
+      totalPages,
+      originalPrice,
+      discountRulesCount: discountRules?.length || 0,
+      discountRules: discountRules,
+    });
+
+    // Calculate discount
+    const discountResult = calculateJobDiscount(
+      {} as PrintJob,
+      originalPrice,
+      totalPages,
+      discountRules
+    );
+
+    console.log("Discount result:", discountResult);
+
+    return {
+      original: originalPrice,
+      discount: discountResult.discountAmount,
+      final: discountResult.finalAmount,
+      hasDiscount: discountResult.discountAmount > 0,
+      ruleName: discountResult.rule?.name,
+    };
   };
 
   const handlePreviewJob = async (job: PrintJob) => {
@@ -626,6 +686,23 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
                       </p>
                       <p className="text-xs text-gray-500">
                         {formatSize(fileStatus.file.size)}
+                        {(() => {
+                          const priceInfo = getFilePriceWithDiscount(fileStatus.file);
+                          if (!priceInfo) return null;
+                          return (
+                            <span className="ml-2">
+                              {priceInfo.hasDiscount ? (
+                                <span className="text-green-600 font-medium">
+                                  <span className="line-through text-gray-400 mr-1">{priceInfo.original.toFixed(0)} DZD</span>
+                                  {priceInfo.final.toFixed(0)} DZD
+                                  <span className="text-xs ml-1">(-{priceInfo.discount.toFixed(0)})</span>
+                                </span>
+                              ) : (
+                                <span>{priceInfo.original.toFixed(0)} DZD</span>
+                              )}
+                            </span>
+                          );
+                        })()}
                       </p>
                     </div>
                   </div>
@@ -691,6 +768,66 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
                 )}
               </div>
             ))}
+
+            {/* Total Price Summary with Discounts */}
+            {selectedFiles.length > 0 && shopSettings?.pricing && (
+              <div className="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+                {(() => {
+                  let totalOriginal = 0;
+                  let totalDiscount = 0;
+                  let totalFinal = 0;
+
+                  selectedFiles.forEach((fileStatus) => {
+                    const priceInfo = getFilePriceWithDiscount(fileStatus.file);
+                    if (priceInfo) {
+                      totalOriginal += priceInfo.original;
+                      totalDiscount += priceInfo.discount;
+                      totalFinal += priceInfo.final;
+                    }
+                  });
+
+                  const hasDiscount = totalDiscount > 0;
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">
+                          {isRtl ? "المجموع الفرعي" : "Subtotal"}
+                        </span>
+                        <span className="font-semibold text-gray-900">
+                          {totalOriginal.toFixed(0)} DZD
+                        </span>
+                      </div>
+                      {hasDiscount && (
+                        <div className="flex justify-between items-center text-green-600">
+                          <span className="text-sm">
+                            {isRtl ? "الخصم" : "Discount"}
+                          </span>
+                          <span className="font-semibold">
+                            -{totalDiscount.toFixed(0)} DZD
+                          </span>
+                        </div>
+                      )}
+                      <div className="border-t border-indigo-200 pt-2 flex justify-between items-center">
+                        <span className="text-base font-bold text-gray-900">
+                          {isRtl ? "الإجمالي" : "Total"}
+                        </span>
+                        <span className="text-lg font-bold text-indigo-600">
+                          {totalFinal.toFixed(0)} DZD
+                        </span>
+                      </div>
+                      {hasDiscount && (
+                        <p className="text-xs text-green-600 text-center mt-2">
+                          {isRtl
+                            ? `وفرت ${totalDiscount.toFixed(0)} DZD!`
+                            : `You saved ${totalDiscount.toFixed(0)} DZD!`}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         )}
 
@@ -1087,6 +1224,26 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
           </div>
         </div>
       )}
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} isRtl={isRtl} />
+
+      {/* Cancel Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={cancelConfirm.isOpen}
+        title={isRtl ? "إلغاء الطباعة" : "Cancel Print Job"}
+        message={
+          isRtl
+            ? "هل أنت متأكد من إلغاء هذه الطباعة؟"
+            : "Are you sure you want to cancel this print job?"
+        }
+        confirmText={isRtl ? "إلغاء" : "Cancel"}
+        cancelText={isRtl ? "تراجع" : "Keep"}
+        onConfirm={confirmCancelJob}
+        onCancel={() => setCancelConfirm({ isOpen: false, jobId: null })}
+        isDanger={true}
+        isRtl={isRtl}
+      />
     </div>
   );
 };
