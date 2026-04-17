@@ -38,3 +38,27 @@ export interface Translations {
     ar: string;
   };
 }
+
+export type DiscountType = "percent" | "fixed";
+export type ConditionType = "pages" | "amount";
+
+export interface DiscountRule {
+  id: string;
+  name: string;
+  discount_type: DiscountType;
+  discount_value: number;
+  condition_type: ConditionType;
+  threshold: number;
+  max_discount_cap: number | null;
+  priority: number;
+  is_active: boolean;
+  created_at?: string;
+}
+
+export interface DiscountResult {
+  rule: DiscountRule | null;
+  originalAmount: number;
+  discountAmount: number;
+  finalAmount: number;
+  savingsPercentage: number;
+}

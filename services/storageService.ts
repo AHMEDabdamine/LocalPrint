@@ -1,4 +1,4 @@
-import { PrintJob, PrintStatus, ShopSettings } from "../types";
+import { PrintJob, PrintStatus, ShopSettings, DiscountRule } from "../types";
 
 class StorageService {
   private async safeFetch(url: string, options?: RequestInit) {
@@ -188,6 +188,37 @@ class StorageService {
       body: formData,
     });
     return response.logoUrl;
+  }
+
+  // Discount Rules
+  async getDiscountRules(): Promise<DiscountRule[]> {
+    return this.safeFetch("/api/discount-rules");
+  }
+
+  async getActiveDiscountRules(): Promise<DiscountRule[]> {
+    return this.safeFetch("/api/discount-rules/active");
+  }
+
+  async createDiscountRule(rule: DiscountRule): Promise<DiscountRule> {
+    return this.safeFetch("/api/discount-rules", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(rule),
+    });
+  }
+
+  async updateDiscountRule(id: string, updates: Partial<DiscountRule>): Promise<DiscountRule> {
+    return this.safeFetch(`/api/discount-rules/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteDiscountRule(id: string): Promise<void> {
+    await this.safeFetch(`/api/discount-rules/${id}`, {
+      method: "DELETE",
+    });
   }
 }
 
