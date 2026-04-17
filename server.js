@@ -591,7 +591,7 @@ app.listen(PORT, HOST, () => {
   }
 
   console.log(`📂 Uploads directory: ${UPLOADS_DIR}`);
-  console.log(`💾 Database file: ${DB_FILE}\n`);
+  console.log(`💾 SQLite database: ${path.join(__dirname, 'database.sqlite')}\n`);
 });
 
 // Graceful shutdown

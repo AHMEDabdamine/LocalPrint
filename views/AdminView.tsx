@@ -9,6 +9,8 @@ import {
   calculateCustomerTotal,
 } from "../utils/pricingUtils";
 import ImageEditor from "../components/ImageEditor";
+import ToastContainer, { useToast } from "../components/ToastContainer";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 interface AdminViewProps {
   lang: Language;
@@ -41,6 +43,12 @@ const AdminView: React.FC<AdminViewProps> = ({
   };
 
   const isRtl = lang === "ar";
+  const { toasts, success, error: showError, removeToast } = useToast();
+
+  // Confirm dialog states
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [singleDeleteConfirm, setSingleDeleteConfirm] = useState<string | null>(null);
+
   const [groups, setGroups] = useState<CustomerGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"jobs" | "settings">("jobs");
@@ -298,22 +306,19 @@ const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
-  const handleBulkDelete = async () => {
-    const count = selectedJobIds.size;
-    if (
-      confirm(
-        isRtl
-          ? `هل أنت متأكد من حذف ${count} ملف؟`
-          : `Are you sure you want to delete ${count} files?`,
-      )
-    ) {
-      const ids = Array.from(selectedJobIds);
-      for (const id of ids) {
-        await storageService.deleteJob(id);
-      }
-      setSelectedJobIds(new Set());
-      loadJobs();
+  const handleBulkDelete = () => {
+    setBulkDeleteConfirm(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    const ids = Array.from(selectedJobIds);
+    for (const id of ids) {
+      await storageService.deleteJob(id);
     }
+    setSelectedJobIds(new Set());
+    setBulkDeleteConfirm(false);
+    loadJobs();
+    success(isRtl ? `تم حذف ${ids.length} ملفات` : `${ids.length} files deleted successfully`);
   };
 
   const handleBulkStatusUpdate = async () => {
@@ -333,7 +338,7 @@ const AdminView: React.FC<AdminViewProps> = ({
       setEditingJob(job);
       setEditingBlob(blob);
     } else {
-      alert(
+      showError(
         isRtl
           ? "تحرير الصور متاح لملفات الصور فقط."
           : "Editing is only for image files.",
@@ -351,9 +356,10 @@ const AdminView: React.FC<AdminViewProps> = ({
         setEditingJob(null);
         setEditingBlob(null);
         loadJobs();
+        success(isRtl ? "تم تحديث الملف بنجاح" : "File updated successfully");
       } catch (err) {
         console.error("Failed to update job file:", err);
-        alert(isRtl ? "فشل تحديث الملف." : "Failed to update file.");
+        showError(isRtl ? "فشل تحديث الملف." : "Failed to update file.");
       }
     }
   };
@@ -367,15 +373,19 @@ const AdminView: React.FC<AdminViewProps> = ({
     loadJobs();
   };
 
-  const handleDelete = async (id: string) => {
-    if (
-      confirm(isRtl ? "هل أنت متأكد من الحذف؟" : "Delete this job and file?")
-    ) {
-      await storageService.deleteJob(id);
+  const handleDelete = (id: string) => {
+    setSingleDeleteConfirm(id);
+  };
+
+  const confirmSingleDelete = async () => {
+    if (singleDeleteConfirm) {
+      await storageService.deleteJob(singleDeleteConfirm);
       const newSelected = new Set(selectedJobIds);
-      newSelected.delete(id);
+      newSelected.delete(singleDeleteConfirm);
       setSelectedJobIds(newSelected);
+      setSingleDeleteConfirm(null);
       loadJobs();
+      success(isRtl ? "تم الحذف بنجاح" : "Deleted successfully");
     }
   };
 
@@ -460,7 +470,7 @@ const AdminView: React.FC<AdminViewProps> = ({
         blackWhitePerPage: blackWhitePrice,
       },
     });
-    alert(isRtl ? "تم الحفظ" : "Saved");
+    success(isRtl ? "تم الحفظ بنجاح" : "Settings saved successfully");
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -470,8 +480,9 @@ const AdminView: React.FC<AdminViewProps> = ({
         const newLogoUrl = await storageService.uploadLogo(file);
         setLogoUrl(newLogoUrl);
         onSettingsUpdate({ ...currentSettings, logoUrl: newLogoUrl });
+        success(isRtl ? "تم رفع الشعار بنجاح" : "Logo uploaded successfully");
       } catch (err) {
-        alert(isRtl ? "فشل رفع الشعار" : "Failed to upload logo");
+        showError(isRtl ? "فشل رفع الشعار" : "Failed to upload logo");
       }
     }
   };
@@ -1263,110 +1274,259 @@ const AdminView: React.FC<AdminViewProps> = ({
             )}
           </>
         ) : (
-          <div className="bg-white rounded-3xl shadow-xl shadow-indigo-100/40 border border-white p-6 sm:p-10 max-w-2xl space-y-8 mx-auto xl:mx-0">
-            <div>
-              <label className="block text-sm font-bold text-gray-800 mb-2">
-                {t("shopName")}
-              </label>
-              <input
-                type="text"
-                className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium text-gray-900"
-                value={shopName}
-                onChange={(e) => setShopName(e.target.value)}
-              />
+          <div className="max-w-5xl mx-auto">
+            {/* Page Header */}
+            <div className="mb-8">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                {isRtl ? "إعدادات المحل" : "Shop Settings"}
+              </h2>
+              <p className="text-gray-600 mt-1 text-sm sm:text-base">
+                {isRtl
+                  ? "إدارة إعدادات المحل والتسعير"
+                  : "Manage your shop configuration and pricing"}
+              </p>
             </div>
 
-            <div>
-              <label className="block text-sm font-bold text-gray-800 mb-2">
-                {t("shopLogo")}
-              </label>
-              <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                {logoUrl && (
-                  <div className="w-16 h-16 rounded-xl border-2 border-white shadow-sm overflow-hidden bg-gray-100 flex-shrink-0">
-                    <img
-                      src={logoUrl}
-                      alt="Logo Preview"
-                      className="w-full h-full object-contain"
+            {/* Settings Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+              {/* Shop Info Card */}
+              <div className="bg-white rounded-2xl shadow-lg shadow-indigo-100/30 border border-gray-100 overflow-hidden">
+                <div className="px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">
+                      {isRtl ? "معلومات المحل" : "Shop Information"}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {isRtl ? "الاسم والشعار" : "Name & logo"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-5 sm:p-6 space-y-5">
+                  {/* Shop Name */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {t("shopName")}
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-gray-900 placeholder-gray-400"
+                      value={shopName}
+                      onChange={(e) => setShopName(e.target.value)}
+                      placeholder={isRtl ? "اسم المحل" : "Print Shop Name"}
                     />
                   </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleLogoUpload}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 file:cursor-pointer file:transition-all cursor-pointer"
-                />
+
+                  {/* Logo Upload */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {t("shopLogo")}
+                    </label>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                      {logoUrl ? (
+                        <div className="w-20 h-20 rounded-xl border-2 border-white shadow-md overflow-hidden bg-gray-100 flex-shrink-0">
+                          <img
+                            src={logoUrl}
+                            alt="Logo Preview"
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="flex-1 w-full">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          className="block w-full text-sm text-gray-500 
+                            file:mr-4 file:py-2.5 file:px-4 
+                            file:rounded-xl file:border-0 
+                            file:text-sm file:font-semibold 
+                            file:bg-indigo-50 file:text-indigo-600 
+                            hover:file:bg-indigo-100 
+                            file:cursor-pointer file:transition-all 
+                            cursor-pointer"
+                        />
+                        <p className="text-xs text-gray-400 mt-2">
+                          {isRtl ? "PNG, JPG أو GIF (الحد الأقصى 2MB)" : "PNG, JPG or GIF (max 2MB)"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pricing Card */}
+              <div className="bg-white rounded-2xl shadow-lg shadow-indigo-100/30 border border-gray-100 overflow-hidden">
+                <div className="px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">
+                      {isRtl ? "أسعار الطباعة" : "Printing Prices"}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {isRtl ? "التسعير لكل صفحة" : "Per page pricing"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-5 sm:p-6 space-y-5">
+                  {/* Color Price */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {isRtl ? "الطباعة الملونة" : "Color Printing"}
+                    </label>
+                    <div className="relative">
+                      <div className={`absolute ${isRtl ? "right-4" : "left-4"} top-1/2 -translate-y-1/2`}>
+                        <span className="text-gray-400 font-bold text-sm">DZD</span>
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className={`w-full py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-14 pl-4" : "pl-14 pr-4"}`}
+                        value={colorPrice}
+                        onChange={(e) => setColorPrice(parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1.5">
+                      {isRtl ? "لكل صفحة" : "per page"}
+                    </p>
+                  </div>
+
+                  {/* B&W Price */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {isRtl ? "الأبيض والأسود" : "Black & White"}
+                    </label>
+                    <div className="relative">
+                      <div className={`absolute ${isRtl ? "right-4" : "left-4"} top-1/2 -translate-y-1/2`}>
+                        <span className="text-gray-400 font-bold text-sm">DZD</span>
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className={`w-full py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-14 pl-4" : "pl-14 pr-4"}`}
+                        value={blackWhitePrice}
+                        onChange={(e) => setBlackWhitePrice(parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1.5">
+                      {isRtl ? "لكل صفحة" : "per page"}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Pricing Settings */}
-            <div className="border-t border-gray-100 pt-8">
-              <h3 className="text-xl font-bold text-gray-900 mb-6">
-                {isRtl ? "أسعار الطباعة" : "Pricing Configuration"}
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-bold text-gray-800 mb-2">
-                    {isRtl
-                      ? "سعر الطباعة الملونة (لكل صفحة)"
-                      : "Color Printing (per page)"}
-                  </label>
-                  <div className="relative flex items-center">
-                    <div
-                      className={`absolute ${isRtl ? "right-5" : "left-5"} text-gray-400 font-bold`}
-                    >
-                      DZD
-                    </div>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className={`w-full py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-16 pl-4" : "pl-16 pr-4"}`}
-                      value={colorPrice}
-                      onChange={(e) =>
-                        setColorPrice(parseFloat(e.target.value) || 0)
-                      }
-                    />
-                  </div>
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-6">
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <div className="text-xs text-gray-500 mb-1">
+                  {isRtl ? "الملفات المعلقة" : "Pending Files"}
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-800 mb-2">
-                    {isRtl
-                      ? "سعر الأبيض والأسود (لكل صفحة)"
-                      : "B&W Printing (per page)"}
-                  </label>
-                  <div className="relative flex items-center">
-                    <div
-                      className={`absolute ${isRtl ? "right-5" : "left-5"} text-gray-400 font-bold`}
-                    >
-                      DZD
-                    </div>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className={`w-full py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-16 pl-4" : "pl-16 pr-4"}`}
-                      value={blackWhitePrice}
-                      onChange={(e) =>
-                        setBlackWhitePrice(parseFloat(e.target.value) || 0)
-                      }
-                    />
-                  </div>
+                <div className="text-xl sm:text-2xl font-bold text-yellow-600">
+                  {groups.reduce((acc, g) => acc + g.jobs.filter(j => j.status === PrintStatus.PENDING).length, 0)}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <div className="text-xs text-gray-500 mb-1">
+                  {isRtl ? "الملفات المطبوعة" : "Printed Files"}
+                </div>
+                <div className="text-xl sm:text-2xl font-bold text-green-600">
+                  {groups.reduce((acc, g) => acc + g.jobs.filter(j => j.status === PrintStatus.PRINTED).length, 0)}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <div className="text-xs text-gray-500 mb-1">
+                  {isRtl ? "إجمالي العملاء" : "Total Customers"}
+                </div>
+                <div className="text-xl sm:text-2xl font-bold text-indigo-600">
+                  {groups.length}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <div className="text-xs text-gray-500 mb-1">
+                  {isRtl ? "إجمالي الملفات" : "Total Files"}
+                </div>
+                <div className="text-xl sm:text-2xl font-bold text-gray-700">
+                  {groups.reduce((acc, g) => acc + g.jobs.length, 0)}
                 </div>
               </div>
             </div>
 
-            <div className="pt-4">
+            {/* Save Button */}
+            <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+              <p className="text-sm text-gray-500">
+                {isRtl
+                  ? "سيتم حفظ التغييرات فورًا"
+                  : "Changes will be saved immediately"}
+              </p>
               <button
                 onClick={saveSettings}
-                className="w-full sm:w-auto bg-indigo-600 text-white font-bold py-4 px-10 rounded-xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-600/20 active:scale-[0.98] text-center"
+                className="w-full sm:w-auto bg-indigo-600 text-white font-bold py-3.5 px-8 rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98] flex items-center justify-center gap-2"
               >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
                 {t("saveSettings")}
               </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} isRtl={isRtl} />
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={bulkDeleteConfirm}
+        title={isRtl ? "حذف متعدد" : "Bulk Delete"}
+        message={
+          isRtl
+            ? `هل أنت متأكد من حذف ${selectedJobIds.size} ملف؟`
+            : `Are you sure you want to delete ${selectedJobIds.size} files?`
+        }
+        confirmText={isRtl ? "حذف" : "Delete"}
+        cancelText={isRtl ? "إلغاء" : "Cancel"}
+        onConfirm={confirmBulkDelete}
+        onCancel={() => setBulkDeleteConfirm(false)}
+        isDanger={true}
+        isRtl={isRtl}
+      />
+
+      {/* Single Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={singleDeleteConfirm !== null}
+        title={isRtl ? "تأكيد الحذف" : "Confirm Delete"}
+        message={
+          isRtl
+            ? "هل أنت متأكد من حذف هذا الملف؟"
+            : "Are you sure you want to delete this file?"
+        }
+        confirmText={isRtl ? "حذف" : "Delete"}
+        cancelText={isRtl ? "إلغاء" : "Cancel"}
+        onConfirm={confirmSingleDelete}
+        onCancel={() => setSingleDeleteConfirm(null)}
+        isDanger={true}
+        isRtl={isRtl}
+      />
     </div>
   );
 };

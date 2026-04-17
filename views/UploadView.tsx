@@ -8,6 +8,8 @@ import {
   formatPrice,
 } from "../utils/pricingUtils";
 import QRCode from "qrcode";
+import ToastContainer, { useToast } from "../components/ToastContainer";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 interface UploadViewProps {
   lang: Language;
@@ -28,6 +30,13 @@ const generateSafeId = () => {
 const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
   const t = (key: string) => TRANSLATIONS[key][lang] || key;
   const isRtl = lang === "ar";
+  const { toasts, success, error: showError, removeToast } = useToast();
+
+  // Confirm dialog state for canceling jobs
+  const [cancelConfirm, setCancelConfirm] = useState<{
+    isOpen: boolean;
+    jobId: string | null;
+  }>({ isOpen: false, jobId: null });
 
   const [formData, setFormData] = useState({
     name: "",
@@ -98,21 +107,22 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
     fetchData();
   }, [overallSuccess]);
 
-  const handleCancelJob = async (id: string) => {
-    if (
-      window.confirm(
-        isRtl
-          ? "هل أنت متأكد من إلغاء هذه الطباعة؟"
-          : "Are you sure you want to cancel this print job?",
-      )
-    ) {
+  const handleCancelJob = (id: string) => {
+    setCancelConfirm({ isOpen: true, jobId: id });
+  };
+
+  const confirmCancelJob = async () => {
+    if (cancelConfirm.jobId) {
       try {
-        await storageService.deleteJob(id);
-        setRecentJobs((prev) => prev.filter((job) => job.id !== id));
+        await storageService.deleteJob(cancelConfirm.jobId);
+        setRecentJobs((prev) => prev.filter((job) => job.id !== cancelConfirm.jobId));
+        success(isRtl ? "تم إلغاء الطباعة بنجاح" : "Print job cancelled successfully");
       } catch (err) {
         console.error("Failed to cancel job", err);
+        showError(isRtl ? "فشل إلغاء الطباعة" : "Failed to cancel print job");
       }
     }
+    setCancelConfirm({ isOpen: false, jobId: null });
   };
 
   const handlePreviewJob = async (job: PrintJob) => {
@@ -1087,6 +1097,26 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
           </div>
         </div>
       )}
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} isRtl={isRtl} />
+
+      {/* Cancel Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={cancelConfirm.isOpen}
+        title={isRtl ? "إلغاء الطباعة" : "Cancel Print Job"}
+        message={
+          isRtl
+            ? "هل أنت متأكد من إلغاء هذه الطباعة؟"
+            : "Are you sure you want to cancel this print job?"
+        }
+        confirmText={isRtl ? "إلغاء" : "Cancel"}
+        cancelText={isRtl ? "تراجع" : "Keep"}
+        onConfirm={confirmCancelJob}
+        onCancel={() => setCancelConfirm({ isOpen: false, jobId: null })}
+        isDanger={true}
+        isRtl={isRtl}
+      />
     </div>
   );
 };
