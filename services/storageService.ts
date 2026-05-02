@@ -161,8 +161,9 @@ class StorageService {
         pricing: settings?.pricing
           ? {
               colorPerPage: Number(settings.pricing.colorPerPage) || 30.0,
-              blackWhitePerPage:
-                Number(settings.pricing.blackWhitePerPage) || 15.0,
+              blackWhitePerPage: Number(settings.pricing.blackWhitePerPage) || 15.0,
+              glossyPerPage: Number(settings.pricing.glossyPerPage) || 50.0,
+              cardboardPerPage: Number(settings.pricing.cardboardPerPage) || 40.0,
             }
           : undefined,
       };

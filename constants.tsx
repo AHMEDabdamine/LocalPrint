@@ -55,6 +55,10 @@ export const TRANSLATIONS: Translations = {
   normalCrop: { en: "Normal Crop", ar: "قص عادي" },
   perspectiveCut: { en: "Perspective Cut", ar: "قص منظوري" },
   recentUploads: { en: "My Recent Uploads", ar: "ملفاتي المرفوعة مؤخراً" },
+  paperType: { en: "Paper Type", ar: "نوع الورق" },
+  normalPaper: { en: "Normal", ar: "عادي" },
+  glossyPaper: { en: "Glossy", ar: "لامع" },
+  cardboardPaper: { en: "Cardboard", ar: "ورق مقوى" },
 };
 
 export const ALLOWED_TYPES = [

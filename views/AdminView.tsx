@@ -74,6 +74,13 @@ const AdminView: React.FC<AdminViewProps> = ({
   const [blackWhitePrice, setBlackWhitePrice] = useState(
     currentSettings.pricing?.blackWhitePerPage || 15.0,
   );
+  const [glossyPrice, setGlossyPrice] = useState(
+    currentSettings.pricing?.glossyPerPage || 50.0,
+  );
+  const [cardboardPrice, setCardboardPrice] = useState(
+    currentSettings.pricing?.cardboardPerPage || 40.0,
+  );
+  const [showPasswords, setShowPasswords] = useState({ current: false, newPass: false, confirm: false });
   const [jobPageCounts, setJobPageCounts] = useState<{
     [jobId: string]: number;
   }>({});
@@ -126,6 +133,8 @@ const AdminView: React.FC<AdminViewProps> = ({
     setLogoUrl(currentSettings.logoUrl);
     setColorPrice(currentSettings.pricing?.colorPerPage || 30.0);
     setBlackWhitePrice(currentSettings.pricing?.blackWhitePerPage || 15.0);
+    setGlossyPrice(currentSettings.pricing?.glossyPerPage || 50.0);
+    setCardboardPrice(currentSettings.pricing?.cardboardPerPage || 40.0);
   }, [currentSettings]);
 
   const loadJobs = async () => {
@@ -617,6 +626,8 @@ const AdminView: React.FC<AdminViewProps> = ({
       pricing: {
         colorPerPage: colorPrice,
         blackWhitePerPage: blackWhitePrice,
+        glossyPerPage: glossyPrice,
+        cardboardPerPage: cardboardPrice,
       },
     });
     onSettingsUpdate({
@@ -625,6 +636,8 @@ const AdminView: React.FC<AdminViewProps> = ({
       pricing: {
         colorPerPage: colorPrice,
         blackWhitePerPage: blackWhitePrice,
+        glossyPerPage: glossyPrice,
+        cardboardPerPage: cardboardPrice,
       },
     });
     success(isRtl ? "تم الحفظ بنجاح" : "Settings saved successfully");
@@ -1707,6 +1720,52 @@ const AdminView: React.FC<AdminViewProps> = ({
                       {isRtl ? "لكل صفحة" : "per page"}
                     </p>
                   </div>
+
+                  {/* Glossy Price */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {isRtl ? "ورق لامع" : "Glossy Paper"}
+                    </label>
+                    <div className="relative">
+                      <div className={`absolute ${isRtl ? "right-4" : "left-4"} top-1/2 -translate-y-1/2`}>
+                        <span className="text-gray-400 font-bold text-sm">DZD</span>
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className={`w-full py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-14 pl-4" : "pl-14 pr-4"}`}
+                        value={glossyPrice}
+                        onChange={(e) => setGlossyPrice(parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1.5">
+                      {isRtl ? "لكل صفحة" : "per page"}
+                    </p>
+                  </div>
+
+                  {/* Cardboard Price */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {isRtl ? "ورق مقوى" : "Cardboard Paper"}
+                    </label>
+                    <div className="relative">
+                      <div className={`absolute ${isRtl ? "right-4" : "left-4"} top-1/2 -translate-y-1/2`}>
+                        <span className="text-gray-400 font-bold text-sm">DZD</span>
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className={`w-full py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-14 pl-4" : "pl-14 pr-4"}`}
+                        value={cardboardPrice}
+                        onChange={(e) => setCardboardPrice(parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1.5">
+                      {isRtl ? "لكل صفحة" : "per page"}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1734,40 +1793,55 @@ const AdminView: React.FC<AdminViewProps> = ({
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       {isRtl ? "كلمة المرور الحالية" : "Current Password"}
                     </label>
-                    <input
-                      type="password"
-                      value={passwordForm.current}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-400/20 outline-none transition-all"
-                      placeholder="••••••••"
-                      required
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPasswords.current ? "text" : "password"}
+                        value={passwordForm.current}
+                        onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
+                        className="w-full px-4 py-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-400/20 outline-none transition-all"
+                        placeholder="••••••••"
+                        required
+                      />
+                      <button type="button" onClick={() => setShowPasswords(p => ({ ...p, current: !p.current }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition" tabIndex={-1}>
+                        {showPasswords.current ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       {isRtl ? "كلمة المرور الجديدة" : "New Password"}
                     </label>
-                    <input
-                      type="password"
-                      value={passwordForm.newPass}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-400/20 outline-none transition-all"
-                      placeholder="••••••••"
-                      required
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPasswords.newPass ? "text" : "password"}
+                        value={passwordForm.newPass}
+                        onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })}
+                        className="w-full px-4 py-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-400/20 outline-none transition-all"
+                        placeholder="••••••••"
+                        required
+                      />
+                      <button type="button" onClick={() => setShowPasswords(p => ({ ...p, newPass: !p.newPass }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition" tabIndex={-1}>
+                        {showPasswords.newPass ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       {isRtl ? "تأكيد كلمة المرور" : "Confirm Password"}
                     </label>
-                    <input
-                      type="password"
-                      value={passwordForm.confirm}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-400/20 outline-none transition-all"
-                      placeholder="••••••••"
-                      required
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPasswords.confirm ? "text" : "password"}
+                        value={passwordForm.confirm}
+                        onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
+                        className="w-full px-4 py-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-400/20 outline-none transition-all"
+                        placeholder="••••••••"
+                        required
+                      />
+                      <button type="button" onClick={() => setShowPasswords(p => ({ ...p, confirm: !p.confirm }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition" tabIndex={-1}>
+                        {showPasswords.confirm ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 {passwordError && (

@@ -13,12 +13,19 @@ export const calculatePrintPrice = (
   actualPages: number = 1,
 ): PriceCalculation => {
   const pricing = settings.pricing || {
-    colorPerPage: 30.0, // Default DZD prices
+    colorPerPage: 30.0,
     blackWhitePerPage: 15.0,
+    glossyPerPage: 50.0,
+    cardboardPerPage: 40.0,
   };
 
+  const paperType = job.printPreferences?.paperType || "normal";
   const pricePerPage =
-    job.printPreferences?.colorMode === "blackWhite"
+    paperType === "glossy"
+      ? (pricing.glossyPerPage ?? 50.0)
+      : paperType === "cardboard"
+      ? (pricing.cardboardPerPage ?? 40.0)
+      : job.printPreferences?.colorMode === "blackWhite"
       ? pricing.blackWhitePerPage
       : pricing.colorPerPage;
 

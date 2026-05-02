@@ -11,6 +11,9 @@ const db = new Database(dbPath);
 // Enable WAL mode for better concurrency
 db.pragma('journal_mode = WAL');
 
+// Add paperType column if it doesn't exist (migration)
+try { db.exec(`ALTER TABLE jobs ADD COLUMN paperType TEXT DEFAULT 'normal'`); } catch (e) { /* already exists */ }
+
 // Initialize schema
 db.exec(`
   CREATE TABLE IF NOT EXISTS jobs (

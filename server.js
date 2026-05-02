@@ -172,7 +172,8 @@ app.get("/api/jobs", (req, res) => {
     ...job,
     printPreferences: {
       colorMode: job.colorMode,
-      copies: job.copies
+      copies: job.copies,
+      paperType: job.paperType || 'normal'
     }
   }));
   res.status(200).json(formattedJobs);
@@ -209,8 +210,8 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
       INSERT INTO jobs (
         id, customerName, phoneNumber, notes, fileName, fileType, 
         fileSize, uploadDate, status, serverFileName, pageCount, 
-        colorMode, copies
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        colorMode, copies, paperType
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     insertStmt.run(
@@ -226,7 +227,8 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
       newJob.serverFileName,
       newJob.pageCount,
       newJob.printPreferences?.colorMode || 'color',
-      newJob.printPreferences?.copies || 1
+      newJob.printPreferences?.copies || 1,
+      newJob.printPreferences?.paperType || 'normal'
     );
 
     res.status(200).json({ success: true, job: newJob });
@@ -396,6 +398,14 @@ app.post("/api/settings", (req, res) => {
           parseFloat(req.body.pricing.blackWhitePerPage) ||
           currentSettings.pricing?.blackWhitePerPage ||
           15.0,
+        glossyPerPage:
+          parseFloat(req.body.pricing.glossyPerPage) ||
+          currentSettings.pricing?.glossyPerPage ||
+          50.0,
+        cardboardPerPage:
+          parseFloat(req.body.pricing.cardboardPerPage) ||
+          currentSettings.pricing?.cardboardPerPage ||
+          40.0,
       };
       updateSetting('pricing', newPricing);
     }

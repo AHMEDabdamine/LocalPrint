@@ -19,6 +19,7 @@ export interface PrintJob {
   printPreferences?: {
     colorMode: "color" | "blackWhite";
     copies: number;
+    paperType?: "normal" | "glossy" | "cardboard";
   };
 }
 
@@ -28,6 +29,8 @@ export interface ShopSettings {
   pricing?: {
     colorPerPage: number;
     blackWhitePerPage: number;
+    glossyPerPage: number;
+    cardboardPerPage: number;
   };
 }
 
