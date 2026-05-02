@@ -399,8 +399,8 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
 
   return (
     <div className={`max-w-xl mx-auto ${isRtl ? "rtl" : ""}`}>
-      <div className="text-center mb-10">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+      <div className="text-center mb-5">
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">
           {t("uploadTitle")}
         </h1>
         <p className="text-gray-600">{t("uploadSub")}</p>
@@ -429,7 +429,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white p-6 sm:p-10 rounded-[2rem] shadow-2xl shadow-indigo-100/40 border border-white space-y-8 mb-12"
+        className="bg-white p-5 sm:p-7 rounded-2xl shadow-xl shadow-indigo-100/40 border border-white space-y-5 mb-8"
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>

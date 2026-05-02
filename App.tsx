@@ -199,7 +199,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col antialiased selection:bg-indigo-100 selection:text-indigo-900">
-      <nav className="bg-white/80 backdrop-blur-xl border-b border-gray-100/50 px-6 py-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
+      <nav className="bg-white/80 backdrop-blur-xl border-b border-gray-100/50 px-6 py-2.5 flex items-center justify-between sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white overflow-hidden shadow-sm">
             {settings.logoUrl ? (
@@ -294,12 +294,12 @@ const App: React.FC = () => {
       </nav>
 
       <main
-        className={`container mx-auto py-12 px-4 flex-grow transition-opacity duration-150 ${isTransitioning ? "opacity-0" : "opacity-100"}`}
+        className={`container mx-auto py-6 px-4 flex-grow transition-opacity duration-150 ${isTransitioning ? "opacity-0" : "opacity-100"}`}
       >
         {renderContent()}
       </main>
 
-      <footer className="py-8 text-center text-gray-400 text-sm border-t border-gray-100 bg-white">
+      <footer className="py-4 text-center text-gray-400 text-sm border-t border-gray-100 bg-white">
         <p>
           &copy; {new Date().getFullYear()} {settings.shopName}.{" "}
           {lang === "ar"
