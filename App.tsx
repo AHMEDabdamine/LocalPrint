@@ -93,9 +93,10 @@ const App: React.FC = () => {
     }
   }, [isAdmin, currentHash, showAdminLogin]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === "admin123") {
+    const ok = await storageService.verifyPassword(password);
+    if (ok) {
       setIsAdmin(true);
       localStorage.setItem("ps_is_admin", "true");
       setShowAdminLogin(false);

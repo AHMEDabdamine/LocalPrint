@@ -220,6 +220,27 @@ class StorageService {
       method: "DELETE",
     });
   }
+
+  async verifyPassword(password: string): Promise<boolean> {
+    try {
+      const result = await this.safeFetch("/api/auth/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      return result.success === true;
+    } catch {
+      return false;
+    }
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await this.safeFetch("/api/settings/password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  }
 }
 
 export const storageService = new StorageService();

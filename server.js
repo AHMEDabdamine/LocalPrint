@@ -445,6 +445,35 @@ app.post("/api/settings/logo", upload.single("logo"), (req, res) => {
   }
 });
 
+// Verify admin password
+app.post("/api/auth/verify", (req, res) => {
+  const { password } = req.body;
+  const settings = getSettings();
+  const stored = settings.adminPassword || "admin123";
+  res.status(200).json({ success: password === stored });
+});
+
+// Change admin password
+app.post("/api/settings/password", (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const settings = getSettings();
+    const stored = settings.adminPassword || "admin123";
+    if (currentPassword !== stored) {
+      return res.status(401).json({ success: false, error: "Current password is incorrect" });
+    }
+    if (!newPassword || newPassword.length < 4) {
+      return res.status(400).json({ success: false, error: "New password must be at least 4 characters" });
+    }
+    updateSetting('adminPassword', newPassword);
+    console.log("🔑 Admin password updated");
+    res.status(200).json({ success: true });
+  } catch (err) {
+    console.error("❌ Password change error:", err);
+    res.status(500).json({ success: false, error: "Failed to change password" });
+  }
+});
+
 // Get local IP address
 app.get("/api/local-ip", (req, res) => {
   try {

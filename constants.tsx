@@ -26,6 +26,7 @@ export const TRANSLATIONS: Translations = {
   date: { en: "Date", ar: "التاريخ" },
   actions: { en: "Actions", ar: "الإجراءات" },
   pending: { en: "Pending", ar: "قيد الانتظار" },
+  ready: { en: "Ready", ar: "جاهز للاستلام" },
   printed: { en: "Printed", ar: "تمت الطباعة" },
   download: { en: "Download", ar: "تحميل" },
   delete: { en: "Delete", ar: "حذف" },

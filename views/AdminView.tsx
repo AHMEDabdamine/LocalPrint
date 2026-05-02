@@ -10,6 +10,7 @@ import {
   calculateJobDiscount,
   calculateCustomerTotalWithDiscounts,
 } from "../utils/pricingUtils";
+import { formatRelativeTime } from "../utils/timeUtils";
 import ImageEditor from "../components/ImageEditor";
 import ToastContainer, { useToast } from "../components/ToastContainer";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -87,6 +88,11 @@ const AdminView: React.FC<AdminViewProps> = ({
   // Local copies value while editing
   const [editingCopiesValue, setEditingCopiesValue] = useState<number>(1);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [passwordForm, setPasswordForm] = useState({ current: "", newPass: "", confirm: "" });
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+
   const [isEditingRule, setIsEditingRule] = useState(false);
   const [editingRule, setEditingRule] = useState<DiscountRule | null>(null);
   const [showRuleForm, setShowRuleForm] = useState(false);
@@ -106,6 +112,13 @@ const AdminView: React.FC<AdminViewProps> = ({
     loadJobs();
     loadDiscountRules();
   }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (activeTab === "jobs") loadJobs();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [activeTab]);
 
   // Load current settings when component mounts
   useEffect(() => {
@@ -485,12 +498,36 @@ const AdminView: React.FC<AdminViewProps> = ({
   };
 
   const handleStatusToggle = async (job: PrintJob) => {
-    const newStatus =
-      job.status === PrintStatus.PENDING
-        ? PrintStatus.PRINTED
-        : PrintStatus.PENDING;
+    const statusCycle: Record<string, PrintStatus> = {
+      [PrintStatus.PENDING]: PrintStatus.READY,
+      [PrintStatus.READY]: PrintStatus.PRINTED,
+      [PrintStatus.PRINTED]: PrintStatus.PENDING,
+    };
+    const newStatus = statusCycle[job.status] ?? PrintStatus.PENDING;
     await storageService.updateStatus(job.id, newStatus);
     loadJobs();
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError("");
+    setPasswordSuccess(false);
+    if (passwordForm.newPass !== passwordForm.confirm) {
+      setPasswordError(isRtl ? "كلمات المرور الجديدة غير متطابقة" : "New passwords do not match");
+      return;
+    }
+    if (passwordForm.newPass.length < 4) {
+      setPasswordError(isRtl ? "يجب أن تكون كلمة المرور 4 أحرف على الأقل" : "Password must be at least 4 characters");
+      return;
+    }
+    try {
+      await storageService.changePassword(passwordForm.current, passwordForm.newPass);
+      setPasswordSuccess(true);
+      setPasswordForm({ current: "", newPass: "", confirm: "" });
+      success(isRtl ? "تم تغيير كلمة المرور بنجاح" : "Password changed successfully");
+    } catch {
+      setPasswordError(isRtl ? "كلمة المرور الحالية غير صحيحة" : "Current password is incorrect");
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -849,6 +886,82 @@ const AdminView: React.FC<AdminViewProps> = ({
       <div className="min-h-[400px]">
         {activeTab === "jobs" ? (
           <>
+            {/* Stats Summary Bar */}
+            {!loading && groups.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-yellow-100 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">{isRtl ? "قيد الانتظار" : "Pending"}</div>
+                    <div className="text-xl font-bold text-yellow-600">{groups.reduce((acc, g) => acc + g.jobs.filter(j => j.status === PrintStatus.PENDING).length, 0)}</div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"/></svg>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">{isRtl ? "جاهز للاستلام" : "Ready"}</div>
+                    <div className="text-xl font-bold text-blue-600">{groups.reduce((acc, g) => acc + g.jobs.filter(j => j.status === PrintStatus.READY).length, 0)}</div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">{isRtl ? "تمت الطباعة" : "Printed"}</div>
+                    <div className="text-xl font-bold text-green-600">{groups.reduce((acc, g) => acc + g.jobs.filter(j => j.status === PrintStatus.PRINTED).length, 0)}</div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">{isRtl ? "إجمالي العملاء" : "Customers"}</div>
+                    <div className="text-xl font-bold text-indigo-600">{groups.length}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Search Bar */}
+            {!loading && groups.length > 0 && (
+              <div className="relative mb-4">
+                <div className={`absolute ${isRtl ? "right-3" : "left-3"} top-1/2 -translate-y-1/2 text-gray-400`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={isRtl ? "ابحث بالاسم أو رقم الهاتف..." : "Search by name or phone..."}
+                  className={`w-full bg-white border border-gray-200 rounded-xl py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all ${isRtl ? "pr-9 pl-4" : "pl-9 pr-4"}`}
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className={`absolute ${isRtl ? "left-3" : "right-3"} top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {(() => {
+              const filteredGroups = searchQuery.trim()
+                ? groups.filter(
+                    (g) =>
+                      g.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      g.phoneNumber.includes(searchQuery)
+                  )
+                : groups;
+              return (
+            <>
             {loading ? (
               <div className="p-12 text-center text-gray-500">
                 Loading from server...
@@ -857,13 +970,18 @@ const AdminView: React.FC<AdminViewProps> = ({
               <div className="p-12 text-center text-gray-500 bg-white rounded-2xl border border-gray-200">
                 <p>{t("noJobs")}</p>
               </div>
+            ) : filteredGroups.length === 0 ? (
+              <div className="p-8 text-center text-gray-500 bg-white rounded-2xl border border-gray-200">
+                <svg className="w-10 h-10 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <p>{isRtl ? "لا توجد نتائج" : "No results found"}</p>
+              </div>
             ) : (
               <div className="space-y-3">
-                {groups.map((group) => {
+                {filteredGroups.map((group) => {
                   const isCollapsed = collapsedGroups.has(group.key);
                   const isExpanded = !isCollapsed;
                   const pendingCount = group.jobs.filter(
-                    (j) => j.status === PrintStatus.PENDING,
+                    (j) => j.status === PrintStatus.PENDING || j.status === PrintStatus.READY,
                   ).length;
                   const allInGroupSelected = group.jobs.every((id) =>
                     selectedJobIds.has(id.id),
@@ -929,6 +1047,8 @@ const AdminView: React.FC<AdminViewProps> = ({
                               <p className="text-xs text-gray-500">
                                 {group.phoneNumber ||
                                   (isRtl ? "بدون هاتف" : "No Phone")}
+                                {" · "}
+                                <span className="text-gray-400">{formatRelativeTime(group.latestDate, lang)}</span>
                               </p>
                             </div>
                           </div>
@@ -1299,11 +1419,15 @@ const AdminView: React.FC<AdminViewProps> = ({
                                         className={`px-3 py-1 text-[11px] font-bold rounded-full uppercase tracking-wide inline-block ${
                                           job.status === PrintStatus.PRINTED
                                             ? "bg-green-100 text-green-700"
+                                            : job.status === PrintStatus.READY
+                                            ? "bg-blue-100 text-blue-700"
                                             : "bg-yellow-100 text-yellow-700"
                                         }`}
                                       >
                                         {job.status === PrintStatus.PRINTED
                                           ? t("printed")
+                                          : job.status === PrintStatus.READY
+                                          ? t("ready")
                                           : t("pending")}
                                       </span>
                                     </td>
@@ -1422,6 +1546,9 @@ const AdminView: React.FC<AdminViewProps> = ({
                 })}
               </div>
             )}
+            </>
+            );
+            })()}
           </>
         ) : (
           <div className="max-w-5xl mx-auto">
@@ -1584,6 +1711,84 @@ const AdminView: React.FC<AdminViewProps> = ({
               </div>
             </div>
 
+            {/* Password Change Card */}
+            <div className="bg-white rounded-2xl shadow-lg shadow-indigo-100/30 border border-gray-100 overflow-hidden lg:col-span-2">
+              <div className="px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">
+                    {isRtl ? "تغيير كلمة المرور" : "Change Password"}
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    {isRtl ? "تحديث كلمة مرور المسؤول" : "Update admin password"}
+                  </p>
+                </div>
+              </div>
+              <form onSubmit={handleChangePassword} className="p-5 sm:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {isRtl ? "كلمة المرور الحالية" : "Current Password"}
+                    </label>
+                    <input
+                      type="password"
+                      value={passwordForm.current}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-400/20 outline-none transition-all"
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {isRtl ? "كلمة المرور الجديدة" : "New Password"}
+                    </label>
+                    <input
+                      type="password"
+                      value={passwordForm.newPass}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-400/20 outline-none transition-all"
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {isRtl ? "تأكيد كلمة المرور" : "Confirm Password"}
+                    </label>
+                    <input
+                      type="password"
+                      value={passwordForm.confirm}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-400/20 outline-none transition-all"
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
+                </div>
+                {passwordError && (
+                  <p className="mt-3 text-sm text-red-600 font-medium">{passwordError}</p>
+                )}
+                {passwordSuccess && (
+                  <p className="mt-3 text-sm text-green-600 font-medium">
+                    {isRtl ? "✓ تم تغيير كلمة المرور بنجاح" : "✓ Password changed successfully"}
+                  </p>
+                )}
+                <div className="mt-4">
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-red-600 text-white text-sm font-bold rounded-xl hover:bg-red-700 transition-all"
+                  >
+                    {isRtl ? "تغيير كلمة المرور" : "Change Password"}
+                  </button>
+                </div>
+              </form>
+            </div>
+
             {/* Discount Rules Card - Full Width */}
             <div className="bg-white rounded-2xl shadow-lg shadow-indigo-100/30 border border-gray-100 overflow-hidden lg:col-span-2">
               <div className="px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
@@ -1711,6 +1916,14 @@ const AdminView: React.FC<AdminViewProps> = ({
               </div>
               <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                 <div className="text-xs text-gray-500 mb-1">
+                  {isRtl ? "جاهز للاستلام" : "Ready Files"}
+                </div>
+                <div className="text-xl sm:text-2xl font-bold text-blue-600">
+                  {groups.reduce((acc, g) => acc + g.jobs.filter(j => j.status === PrintStatus.READY).length, 0)}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <div className="text-xs text-gray-500 mb-1">
                   {isRtl ? "الملفات المطبوعة" : "Printed Files"}
                 </div>
                 <div className="text-xl sm:text-2xl font-bold text-green-600">
@@ -1723,14 +1936,6 @@ const AdminView: React.FC<AdminViewProps> = ({
                 </div>
                 <div className="text-xl sm:text-2xl font-bold text-indigo-600">
                   {groups.length}
-                </div>
-              </div>
-              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                <div className="text-xs text-gray-500 mb-1">
-                  {isRtl ? "إجمالي الملفات" : "Total Files"}
-                </div>
-                <div className="text-xl sm:text-2xl font-bold text-gray-700">
-                  {groups.reduce((acc, g) => acc + g.jobs.length, 0)}
                 </div>
               </div>
             </div>
