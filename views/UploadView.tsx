@@ -14,6 +14,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 
 interface UploadViewProps {
   lang: Language;
+  shopSettings?: ShopSettings;
 }
 
 interface FileStatus {
@@ -28,7 +29,7 @@ const generateSafeId = () => {
   return Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
 };
 
-const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
+const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSettings }) => {
   const t = (key: string) => TRANSLATIONS[key][lang] || key;
   const isRtl = lang === "ar";
   const { toasts, success, error: showError, removeToast } = useToast();
@@ -76,20 +77,26 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
   const [discountRules, setDiscountRules] = useState<DiscountRule[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
+  // Sync prop settings whenever admin updates them
+  useEffect(() => {
+    if (propSettings) {
+      setShopSettings(propSettings);
+    }
+  }, [propSettings]);
+
   useEffect(() => {
     const fetchData = async () => {
       const [jobs, settings, rules] = await Promise.all([
         storageService.getMyRecentJobs(),
-        storageService.getSettings(),
+        propSettings ? Promise.resolve(propSettings) : storageService.getSettings(),
         storageService.getActiveDiscountRules(),
       ]);
       setRecentJobs(jobs);
-      setShopSettings(settings);
+      if (!propSettings) setShopSettings(settings);
       setDiscountRules(rules);
-      console.log("Loaded discount rules:", rules);
 
       // Async page counting for pricing display
-      if (settings?.pricing) {
+      if (settings?.pricing || (settings?.paperTypes && settings.paperTypes.length > 0)) {
         const counts: { [jobId: string]: number } = {};
         for (const job of jobs) {
           if (job.pageCount && job.pageCount > 0) {
@@ -101,9 +108,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
             if (url) {
               const response = await fetch(url);
               const blob = await response.blob();
-              const file = new File([blob], job.fileName, {
-                type: job.fileType,
-              });
+              const file = new File([blob], job.fileName, { type: job.fileType });
               counts[job.id] = await getActualPageCount(file);
             } else {
               counts[job.id] = 1;
@@ -377,38 +382,102 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
+  const overallProgress = selectedFiles.length > 0
+    ? Math.round(selectedFiles.reduce((sum, f) => sum + (f.status === "success" ? 100 : f.progress), 0) / selectedFiles.length)
+    : 0;
+
+  const confettiItems = Array.from({ length: 24 }, (_, i) => ({
+    id: i,
+    color: ["#6366f1","#8b5cf6","#ec4899","#f59e0b","#10b981","#3b82f6","#ef4444","#f97316"][i % 8],
+    x: `${(Math.random() * 200 - 100).toFixed(0)}px`,
+    y: `${-(Math.random() * 180 + 80).toFixed(0)}px`,
+    delay: `${(Math.random() * 0.5).toFixed(2)}s`,
+    size: `${(Math.random() * 8 + 6).toFixed(0)}px`,
+    shape: i % 3 === 0 ? "50%" : i % 3 === 1 ? "2px" : "0%",
+  }));
+
   if (overallSuccess) {
     return (
-      <div className="max-w-md mx-auto mt-12 p-8 bg-white rounded-2xl shadow-xl text-center border border-gray-100">
-        <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg
-            className="w-8 h-8"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M5 13l4 4L19 7"
-            ></path>
-          </svg>
+      <>
+        <style>{`
+          @keyframes successPop {
+            0% { transform: scale(0) rotate(-180deg); opacity: 0; }
+            60% { transform: scale(1.25) rotate(15deg); opacity: 1; }
+            80% { transform: scale(0.9) rotate(-5deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+          }
+          @keyframes confettiBurst {
+            0% { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+            100% { transform: translate(var(--cx), var(--cy)) rotate(720deg) scale(0); opacity: 0; }
+          }
+          @keyframes fadeSlideUp {
+            0% { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
+          }
+          .success-pop { animation: successPop 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+          .fade-slide-up { animation: fadeSlideUp 0.5s ease forwards; }
+          .confetti-piece { animation: confettiBurst 1s ease-out var(--delay) forwards; opacity: 0; animation-delay: var(--delay); }
+        `}</style>
+        <div className="max-w-md mx-auto mt-12 relative">
+          {/* Confetti burst */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden" style={{ top: "60px" }}>
+            {confettiItems.map(c => (
+              <div
+                key={c.id}
+                className="confetti-piece absolute"
+                style={{
+                  "--cx": c.x,
+                  "--cy": c.y,
+                  "--delay": c.delay,
+                  width: c.size,
+                  height: c.size,
+                  backgroundColor: c.color,
+                  borderRadius: c.shape,
+                } as React.CSSProperties}
+              />
+            ))}
+          </div>
+
+          <div className="bg-white p-10 rounded-3xl shadow-2xl shadow-indigo-100/60 text-center border border-gray-100 relative z-10">
+            {/* Animated checkmark */}
+            <div className="success-pop w-24 h-24 mx-auto mb-6 relative">
+              <div className="absolute inset-0 rounded-full bg-green-100 animate-ping opacity-30" style={{ animationDuration: "1.5s" }} />
+              <div className="w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-green-200">
+                <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="fade-slide-up" style={{ animationDelay: "0.2s", opacity: 0 }}>
+              <h2 className="text-3xl font-black text-gray-900 mb-2">
+                {isRtl ? "تم الإرسال!" : "Files Sent!"}
+              </h2>
+              <p className="text-gray-500 mb-2 text-base">
+                {isRtl ? "وصلت ملفاتك إلى الطابعة بنجاح" : "Your files are on their way to the printer"}
+              </p>
+              <div className="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 px-4 py-2 rounded-full text-sm font-semibold mb-8 border border-indigo-100">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                {isRtl ? "في انتظار الطباعة" : "Queued for printing"}
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setOverallSuccess(false);
+                setSelectedFiles([]);
+                setFormData({ name: "", phone: "", notes: "" });
+                setPrintPreferences({ colorMode: "color", copies: 1, paperType: shopSettings?.paperTypes?.[0]?.id || "normal" });
+              }}
+              className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold px-8 py-3.5 rounded-2xl hover:from-indigo-700 hover:to-violet-700 transition-all shadow-lg shadow-indigo-200 hover:shadow-xl hover:shadow-indigo-300 active:scale-95 text-base"
+            >
+              {isRtl ? "إرسال ملفات أخرى" : "Send more files"}
+            </button>
+          </div>
         </div>
-        <h2 className="text-2xl font-bold mb-2">{t("successMsg")}</h2>
-        <p className="text-gray-600 mb-6">{t("uploadSub")}</p>
-        <button
-          onClick={() => {
-            setOverallSuccess(false);
-            setSelectedFiles([]);
-            setFormData({ name: "", phone: "", notes: "" });
-            setPrintPreferences({ colorMode: "color", copies: 1, paperType: "normal" });
-          }}
-          className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition"
-        >
-          {isRtl ? "إرسال ملفات أخرى" : "Send more files"}
-        </button>
-      </div>
+      </>
     );
   }
 
@@ -1054,7 +1123,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
                 </div>
                 <div className="flex flex-col items-end gap-3">
                   <div className="flex items-center gap-3">
-                    {shopSettings?.pricing && (
+                    {(shopSettings?.pricing || (shopSettings?.paperTypes && shopSettings.paperTypes.length > 0)) && (
                       <span className="text-sm font-bold text-green-600 bg-green-50 px-2.5 py-0.5 rounded-md border border-green-100 whitespace-nowrap">
                         {formatPrice(
                           calculatePrintPrice(
@@ -1306,6 +1375,180 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Upload Animation Overlay */}
+      {isUploading && (
+        <>
+          <style>{`
+            @keyframes floatToPrinter {
+              0%   { transform: translateY(40px) scale(0.85) rotate(-4deg); opacity: 0; }
+              15%  { opacity: 1; }
+              75%  { opacity: 0.9; }
+              100% { transform: translateY(-90px) scale(0.25) rotate(10deg); opacity: 0; }
+            }
+            @keyframes printerBounce {
+              0%, 100% { transform: translateY(0) scale(1); }
+              50%       { transform: translateY(-7px) scale(1.04); }
+            }
+            @keyframes glowPulse {
+              0%, 100% { box-shadow: 0 0 24px rgba(99,102,241,0.4), 0 0 48px rgba(99,102,241,0.15); }
+              50%       { box-shadow: 0 0 48px rgba(99,102,241,0.8), 0 0 96px rgba(99,102,241,0.35), 0 0 140px rgba(139,92,246,0.15); }
+            }
+            @keyframes shimmerBar {
+              0%   { background-position: -200% center; }
+              100% { background-position: 200% center; }
+            }
+            @keyframes dotPulse {
+              0%, 80%, 100% { transform: scale(0.55); opacity: 0.25; }
+              40%            { transform: scale(1);    opacity: 1; }
+            }
+            @keyframes overlayFadeIn {
+              from { opacity: 0; }
+              to   { opacity: 1; }
+            }
+            @keyframes cardSlideUp {
+              from { opacity: 0; transform: translateY(30px) scale(0.95); }
+              to   { opacity: 1; transform: translateY(0)    scale(1); }
+            }
+            .upl-float-1 { animation: floatToPrinter 2.4s ease-in-out infinite 0s; }
+            .upl-float-2 { animation: floatToPrinter 2.4s ease-in-out infinite 0.8s; }
+            .upl-float-3 { animation: floatToPrinter 2.4s ease-in-out infinite 1.6s; }
+            .upl-printer { animation: printerBounce 1.3s ease-in-out infinite, glowPulse 2s ease-in-out infinite; }
+            .upl-shimmer {
+              background: linear-gradient(90deg,#6366f1 0%,#8b5cf6 40%,#c4b5fd 50%,#8b5cf6 60%,#6366f1 100%);
+              background-size: 200% auto;
+              animation: shimmerBar 1.5s linear infinite;
+            }
+            .upl-dot-1 { animation: dotPulse 1.4s ease-in-out infinite 0s; }
+            .upl-dot-2 { animation: dotPulse 1.4s ease-in-out infinite 0.22s; }
+            .upl-dot-3 { animation: dotPulse 1.4s ease-in-out infinite 0.44s; }
+            .upl-overlay { animation: overlayFadeIn 0.25s ease forwards; }
+            .upl-card    { animation: cardSlideUp  0.35s cubic-bezier(0.34,1.3,0.64,1) forwards; }
+          `}</style>
+
+          <div className="upl-overlay fixed inset-0 z-50 flex items-center justify-center px-4"
+            style={{ background: "rgba(10,10,25,0.65)", backdropFilter: "blur(14px)" }}>
+            <div className="upl-card bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm text-center relative overflow-hidden">
+              {/* BG gradient */}
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/80 via-white to-violet-50/80 pointer-events-none" />
+
+              <div className="relative z-10">
+                {/* Printer + floating docs */}
+                <div className="relative flex items-end justify-center h-40 mb-5">
+                  {/* Floating paper 1 */}
+                  <div className="upl-float-1 absolute" style={{ bottom: 10, left: "50%", marginLeft: -60 }}>
+                    <div className="w-10 h-12 bg-white border-2 border-indigo-200 rounded-lg shadow-md flex flex-col items-center justify-center gap-1 p-1.5">
+                      <div className="w-6 h-0.5 bg-indigo-200 rounded" />
+                      <div className="w-5 h-0.5 bg-indigo-100 rounded" />
+                      <div className="w-6 h-0.5 bg-indigo-100 rounded" />
+                    </div>
+                  </div>
+                  {/* Floating paper 2 */}
+                  <div className="upl-float-2 absolute" style={{ bottom: 10, left: "50%", marginLeft: -20 }}>
+                    <div className="w-10 h-12 bg-white border-2 border-violet-200 rounded-lg shadow-md flex items-center justify-center">
+                      <svg className="w-5 h-5 text-violet-300" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/>
+                      </svg>
+                    </div>
+                  </div>
+                  {/* Floating paper 3 */}
+                  <div className="upl-float-3 absolute" style={{ bottom: 10, left: "50%", marginLeft: 20 }}>
+                    <div className="w-10 h-12 bg-white border-2 border-pink-200 rounded-lg shadow-md flex flex-col items-center justify-center gap-1 p-1.5">
+                      <div className="w-6 h-0.5 bg-pink-200 rounded" />
+                      <div className="w-4 h-0.5 bg-pink-100 rounded" />
+                    </div>
+                  </div>
+
+                  {/* Printer */}
+                  <div className="upl-printer absolute top-0 left-1/2 -translate-x-1/2 w-20 h-20 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-300/60">
+                    <div className="absolute inset-0 rounded-2xl bg-indigo-400 animate-ping opacity-15" style={{ animationDuration: "1.8s" }} />
+                    <svg className="w-10 h-10 text-white relative z-10" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm-1 9H8v2h4v-2z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Progress ring */}
+                <div className="relative mx-auto mb-4 w-20 h-20">
+                  <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
+                    <circle cx="40" cy="40" r="34" fill="none" stroke="#e0e7ff" strokeWidth="7" />
+                    <circle
+                      cx="40" cy="40" r="34"
+                      fill="none"
+                      stroke="url(#pg)"
+                      strokeWidth="7"
+                      strokeLinecap="round"
+                      strokeDasharray="214"
+                      strokeDashoffset={Math.max(4, 214 - (214 * overallProgress / 100))}
+                      style={{ transition: "stroke-dashoffset 0.4s ease" }}
+                    />
+                    <defs>
+                      <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#6366f1" />
+                        <stop offset="100%" stopColor="#8b5cf6" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-xl font-black text-indigo-700">{overallProgress}%</span>
+                  </div>
+                </div>
+
+                {/* Animated label */}
+                <div className="flex items-center justify-center gap-1.5 mb-4">
+                  <span className="text-base font-bold text-gray-800">
+                    {isRtl ? "جاري الإرسال" : "Uploading"}
+                  </span>
+                  <span className="upl-dot-1 w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block" />
+                  <span className="upl-dot-2 w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block" />
+                  <span className="upl-dot-3 w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block" />
+                </div>
+
+                {/* Shimmer progress bar */}
+                <div className="w-full bg-indigo-100 rounded-full h-2.5 overflow-hidden mb-5">
+                  <div
+                    className="upl-shimmer h-full rounded-full"
+                    style={{ width: `${Math.max(overallProgress, 6)}%`, transition: "width 0.4s ease" }}
+                  />
+                </div>
+
+                {/* Per-file list */}
+                <div className="space-y-2.5 text-left max-h-40 overflow-y-auto">
+                  {selectedFiles.map(f => (
+                    <div key={f.id} className="flex items-center gap-2.5">
+                      {f.status === "success" ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      ) : f.status === "uploading" ? (
+                        <div className="w-4 h-4 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin flex-shrink-0" />
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border-2 border-gray-200 flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-xs text-gray-700 font-medium truncate">{f.file.name}</span>
+                          <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
+                            {f.status === "success" ? "100%" : `${f.progress}%`}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-1">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${f.status === "success" ? "bg-green-400" : "bg-indigo-500"}`}
+                            style={{ width: `${f.status === "success" ? 100 : f.progress}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Toast Notifications */}

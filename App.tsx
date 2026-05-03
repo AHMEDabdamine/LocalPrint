@@ -210,7 +210,7 @@ const App: React.FC = () => {
       );
     }
 
-    return <UploadView lang={lang} />;
+    return <UploadView lang={lang} shopSettings={settings} />;
   };
 
   return (
