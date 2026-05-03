@@ -13,6 +13,7 @@ db.pragma('journal_mode = WAL');
 
 // Add paperType column if it doesn't exist (migration)
 try { db.exec(`ALTER TABLE jobs ADD COLUMN paperType TEXT DEFAULT 'normal'`); } catch (e) { /* already exists */ }
+try { db.exec(`ALTER TABLE settings ADD COLUMN paperTypes TEXT`); } catch (e) { /* already exists */ }
 
 // Initialize schema
 db.exec(`

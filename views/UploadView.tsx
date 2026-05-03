@@ -70,19 +70,12 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Pricing & Pages States
-  const [shopSettings, setShopSettings] = useState<ShopSettings | null>(null);
+  const [shopSettings, setShopSettings] = useState<ShopSettings | null>(propSettings || null);
   const [jobPageCounts, setJobPageCounts] = useState<{
     [jobId: string]: number;
   }>({});
   const [discountRules, setDiscountRules] = useState<DiscountRule[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-
-  // Sync prop settings whenever admin updates them
-  useEffect(() => {
-    if (propSettings) {
-      setShopSettings(propSettings);
-    }
-  }, [propSettings]);
 
   useEffect(() => {
     const fetchData = async () => {
