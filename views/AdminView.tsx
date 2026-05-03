@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Language, PrintJob, PrintStatus, ShopSettings, DiscountRule, DiscountType, ConditionType } from "../types";
+import { Language, PrintJob, PrintStatus, ShopSettings, DiscountRule, DiscountType, ConditionType, PaperType } from "../types";
 import { TRANSLATIONS } from "../constants";
 import { storageService } from "../services/storageService";
 import {
@@ -68,18 +68,19 @@ const AdminView: React.FC<AdminViewProps> = ({
   const [logoUrl, setLogoUrl] = useState<string | null>(
     currentSettings.logoUrl,
   );
-  const [colorPrice, setColorPrice] = useState(
-    currentSettings.pricing?.colorPerPage || 30.0,
+  const [paperTypes, setPaperTypes] = useState<PaperType[]>(
+    currentSettings.paperTypes && currentSettings.paperTypes.length > 0
+      ? currentSettings.paperTypes
+      : [
+          { id: "normal", name: "Normal", nameAr: "عادي", colorPerPage: currentSettings.pricing?.colorPerPage || 30.0, blackWhitePerPage: currentSettings.pricing?.blackWhitePerPage || 15.0 },
+          { id: "glossy", name: "Glossy", nameAr: "لامع", colorPerPage: currentSettings.pricing?.glossyPerPage || 50.0, blackWhitePerPage: currentSettings.pricing?.glossyPerPage || 50.0 },
+          { id: "cardboard", name: "Cardboard", nameAr: "ورق مقوى", colorPerPage: currentSettings.pricing?.cardboardPerPage || 40.0, blackWhitePerPage: currentSettings.pricing?.cardboardPerPage || 40.0 },
+        ]
   );
-  const [blackWhitePrice, setBlackWhitePrice] = useState(
-    currentSettings.pricing?.blackWhitePerPage || 15.0,
-  );
-  const [glossyPrice, setGlossyPrice] = useState(
-    currentSettings.pricing?.glossyPerPage || 50.0,
-  );
-  const [cardboardPrice, setCardboardPrice] = useState(
-    currentSettings.pricing?.cardboardPerPage || 40.0,
-  );
+  const [editingPaperTypeId, setEditingPaperTypeId] = useState<string | null>(null);
+  const [editingPaperTypeForm, setEditingPaperTypeForm] = useState<{ name: string; nameAr: string; colorPerPage: number; blackWhitePerPage: number } | null>(null);
+  const [showAddPaperTypeForm, setShowAddPaperTypeForm] = useState(false);
+  const [newPaperTypeForm, setNewPaperTypeForm] = useState({ name: "", nameAr: "", colorPerPage: 30, blackWhitePerPage: 15 });
   const [showPasswords, setShowPasswords] = useState({ current: false, newPass: false, confirm: false });
   const [jobPageCounts, setJobPageCounts] = useState<{
     [jobId: string]: number;
@@ -131,10 +132,9 @@ const AdminView: React.FC<AdminViewProps> = ({
   useEffect(() => {
     setShopName(currentSettings.shopName);
     setLogoUrl(currentSettings.logoUrl);
-    setColorPrice(currentSettings.pricing?.colorPerPage || 30.0);
-    setBlackWhitePrice(currentSettings.pricing?.blackWhitePerPage || 15.0);
-    setGlossyPrice(currentSettings.pricing?.glossyPerPage || 50.0);
-    setCardboardPrice(currentSettings.pricing?.cardboardPerPage || 40.0);
+    if (currentSettings.paperTypes && currentSettings.paperTypes.length > 0) {
+      setPaperTypes(currentSettings.paperTypes);
+    }
   }, [currentSettings]);
 
   const loadJobs = async () => {
@@ -561,22 +561,20 @@ const AdminView: React.FC<AdminViewProps> = ({
     const newMode =
       job.printPreferences?.colorMode === "blackWhite" ? "color" : "blackWhite";
     const newCopies = job.printPreferences?.copies || 1;
+    const paperType = job.printPreferences?.paperType || "normal";
     setSavingPrefsJobId(job.id);
     try {
       await storageService.updateJobPreferences(job.id, {
         colorMode: newMode,
         copies: newCopies,
+        paperType,
       });
-      // Optimistically update local state
       setGroups((prev) =>
         prev.map((g) => ({
           ...g,
           jobs: g.jobs.map((j) =>
             j.id === job.id
-              ? {
-                  ...j,
-                  printPreferences: { colorMode: newMode, copies: newCopies },
-                }
+              ? { ...j, printPreferences: { colorMode: newMode, copies: newCopies, paperType } }
               : j,
           ),
         })),
@@ -593,12 +591,14 @@ const AdminView: React.FC<AdminViewProps> = ({
     if (savingPrefsJobId === job.id) return;
     const safeCopies = Math.max(1, Math.min(100, copies));
     const colorMode = job.printPreferences?.colorMode || "color";
+    const paperType = job.printPreferences?.paperType || "normal";
     setSavingPrefsJobId(job.id);
     setEditingCopiesJobId(null);
     try {
       await storageService.updateJobPreferences(job.id, {
         colorMode,
         copies: safeCopies,
+        paperType,
       });
       setGroups((prev) =>
         prev.map((g) => ({
@@ -620,26 +620,35 @@ const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
+  const getPaperTypeName = (id: string) => {
+    const pt = paperTypes.find(p => p.id === id);
+    if (!pt) return isRtl ? "عادي" : "Normal";
+    return isRtl ? pt.nameAr : pt.name;
+  };
+
+  const handleAddPaperType = () => {
+    if (!newPaperTypeForm.name.trim()) return;
+    const newId = `pt_${Date.now()}`;
+    const newPt: PaperType = { id: newId, name: newPaperTypeForm.name.trim(), nameAr: newPaperTypeForm.nameAr.trim() || newPaperTypeForm.name.trim(), colorPerPage: newPaperTypeForm.colorPerPage, blackWhitePerPage: newPaperTypeForm.blackWhitePerPage };
+    setPaperTypes(prev => [...prev, newPt]);
+    setShowAddPaperTypeForm(false);
+    setNewPaperTypeForm({ name: "", nameAr: "", colorPerPage: 30, blackWhitePerPage: 15 });
+  };
+
+  const handleSavePaperType = (id: string) => {
+    if (!editingPaperTypeForm) return;
+    setPaperTypes(prev => prev.map(pt => pt.id === id ? { ...pt, ...editingPaperTypeForm } : pt));
+    setEditingPaperTypeId(null);
+    setEditingPaperTypeForm(null);
+  };
+
+  const handleDeletePaperType = (id: string) => {
+    setPaperTypes(prev => prev.filter(pt => pt.id !== id));
+  };
+
   const saveSettings = async () => {
-    await storageService.saveSettings({
-      shopName,
-      pricing: {
-        colorPerPage: colorPrice,
-        blackWhitePerPage: blackWhitePrice,
-        glossyPerPage: glossyPrice,
-        cardboardPerPage: cardboardPrice,
-      },
-    });
-    onSettingsUpdate({
-      ...currentSettings,
-      shopName,
-      pricing: {
-        colorPerPage: colorPrice,
-        blackWhitePerPage: blackWhitePrice,
-        glossyPerPage: glossyPrice,
-        cardboardPerPage: cardboardPrice,
-      },
-    });
+    await storageService.saveSettings({ shopName, paperTypes });
+    onSettingsUpdate({ ...currentSettings, shopName, paperTypes });
     success(isRtl ? "تم الحفظ بنجاح" : "Settings saved successfully");
   };
 
@@ -1380,13 +1389,20 @@ const AdminView: React.FC<AdminViewProps> = ({
                                               {isRtl ? "نسخ" : "copies"}
                                             </button>
                                           )}
+
+                                          {/* Paper Type Badge */}
+                                          {job.printPreferences?.paperType && (
+                                            <span className="text-xs px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg font-medium w-max">
+                                              {getPaperTypeName(job.printPreferences.paperType)}
+                                            </span>
+                                          )}
                                         </div>
                                       )}
                                     </td>
 
                                     {/* Cost Cell */}
                                     <td className="px-4 py-2 align-top w-max">
-                                      {currentSettings.pricing ? (
+                                      {(currentSettings.pricing || (currentSettings.paperTypes && currentSettings.paperTypes.length > 0)) ? (
                                         (() => {
                                           const pageCount = jobPageCounts[job.id] || 1;
                                           const priceCalc = calculatePrintPrice(job, currentSettings, pageCount);
@@ -1674,98 +1690,188 @@ const AdminView: React.FC<AdminViewProps> = ({
                   </div>
                 </div>
 
-                <div className="p-5 sm:p-6 space-y-5">
-                  {/* Color Price */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      {isRtl ? "الطباعة الملونة" : "Color Printing"}
+                <div className="p-5 sm:p-6 space-y-4">
+                  {/* Paper Types Table */}
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-semibold text-gray-700">
+                      {isRtl ? "أنواع الورق وأسعارها" : "Paper Types & Pricing"}
                     </label>
-                    <div className="relative">
-                      <div className={`absolute ${isRtl ? "right-4" : "left-4"} top-1/2 -translate-y-1/2`}>
-                        <span className="text-gray-400 font-bold text-sm">DZD</span>
-                      </div>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        className={`w-full py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-14 pl-4" : "pl-14 pr-4"}`}
-                        value={colorPrice}
-                        onChange={(e) => setColorPrice(parseFloat(e.target.value) || 0)}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1.5">
-                      {isRtl ? "لكل صفحة" : "per page"}
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => { setShowAddPaperTypeForm(true); setEditingPaperTypeId(null); }}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 active:scale-95 transition font-medium"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
+                      {isRtl ? "إضافة نوع" : "Add Type"}
+                    </button>
                   </div>
 
-                  {/* B&W Price */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      {isRtl ? "الأبيض والأسود" : "Black & White"}
-                    </label>
-                    <div className="relative">
-                      <div className={`absolute ${isRtl ? "right-4" : "left-4"} top-1/2 -translate-y-1/2`}>
-                        <span className="text-gray-400 font-bold text-sm">DZD</span>
-                      </div>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        className={`w-full py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-14 pl-4" : "pl-14 pr-4"}`}
-                        value={blackWhitePrice}
-                        onChange={(e) => setBlackWhitePrice(parseFloat(e.target.value) || 0)}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1.5">
-                      {isRtl ? "لكل صفحة" : "per page"}
-                    </p>
+                  <div className="border border-gray-100 rounded-xl overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100">
+                          <th className={`px-3 py-2.5 text-xs font-semibold text-gray-500 ${isRtl ? "text-right" : "text-left"}`}>{isRtl ? "نوع الورق" : "Paper Type"}</th>
+                          <th className={`px-3 py-2.5 text-xs font-semibold text-gray-500 ${isRtl ? "text-right" : "text-left"}`}>{isRtl ? "ملون" : "Color"}</th>
+                          <th className={`px-3 py-2.5 text-xs font-semibold text-gray-500 ${isRtl ? "text-right" : "text-left"}`}>{isRtl ? "أبيض/أسود" : "B&W"}</th>
+                          <th className="px-3 py-2.5 w-16"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paperTypes.map((pt, idx) => (
+                          <tr key={pt.id} className={idx < paperTypes.length - 1 ? "border-b border-gray-100" : ""}>
+                            {editingPaperTypeId === pt.id && editingPaperTypeForm ? (
+                              <>
+                                <td className="px-3 py-2">
+                                  <input
+                                    value={editingPaperTypeForm.name}
+                                    onChange={e => setEditingPaperTypeForm({ ...editingPaperTypeForm, name: e.target.value })}
+                                    className="w-full px-2 py-1 text-xs border border-indigo-300 rounded-lg mb-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    placeholder="EN"
+                                  />
+                                  <input
+                                    value={editingPaperTypeForm.nameAr}
+                                    onChange={e => setEditingPaperTypeForm({ ...editingPaperTypeForm, nameAr: e.target.value })}
+                                    className="w-full px-2 py-1 text-xs border border-indigo-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    placeholder="AR"
+                                    dir="rtl"
+                                  />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.5"
+                                    value={editingPaperTypeForm.colorPerPage}
+                                    onChange={e => setEditingPaperTypeForm({ ...editingPaperTypeForm, colorPerPage: parseFloat(e.target.value) || 0 })}
+                                    className="w-20 px-2 py-1 text-xs border border-indigo-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.5"
+                                    value={editingPaperTypeForm.blackWhitePerPage}
+                                    onChange={e => setEditingPaperTypeForm({ ...editingPaperTypeForm, blackWhitePerPage: parseFloat(e.target.value) || 0 })}
+                                    className="w-20 px-2 py-1 text-xs border border-indigo-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <div className="flex gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSavePaperType(pt.id)}
+                                      className="px-2 py-1 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
+                                    >✓</button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setEditingPaperTypeId(null); setEditingPaperTypeForm(null); }}
+                                      className="px-2 py-1 text-xs bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 transition"
+                                    >✕</button>
+                                  </div>
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="px-3 py-3">
+                                  <div className="font-semibold text-gray-900 text-sm">{isRtl ? pt.nameAr : pt.name}</div>
+                                  <div className="text-xs text-gray-400">{isRtl ? pt.name : pt.nameAr}</div>
+                                </td>
+                                <td className="px-3 py-3">
+                                  <span className="font-semibold text-indigo-700">{pt.colorPerPage}</span>
+                                  <span className="text-xs text-gray-400 ml-1">DZD</span>
+                                </td>
+                                <td className="px-3 py-3">
+                                  <span className="font-semibold text-gray-700">{pt.blackWhitePerPage}</span>
+                                  <span className="text-xs text-gray-400 ml-1">DZD</span>
+                                </td>
+                                <td className="px-3 py-3">
+                                  <div className="flex gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => { setEditingPaperTypeId(pt.id); setEditingPaperTypeForm({ name: pt.name, nameAr: pt.nameAr, colorPerPage: pt.colorPerPage, blackWhitePerPage: pt.blackWhitePerPage }); setShowAddPaperTypeForm(false); }}
+                                      className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition"
+                                      title="Edit"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536M9 11l6.071-6.071a2.5 2.5 0 113.536 3.536L12.536 14.5a2 2 0 01-.93.534l-3.192.798.798-3.192a2 2 0 01.534-.93L9 11z"/></svg>
+                                    </button>
+                                    {paperTypes.length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeletePaperType(pt.id)}
+                                        className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition"
+                                        title="Delete"
+                                      >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
 
-                  {/* Glossy Price */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      {isRtl ? "ورق لامع" : "Glossy Paper"}
-                    </label>
-                    <div className="relative">
-                      <div className={`absolute ${isRtl ? "right-4" : "left-4"} top-1/2 -translate-y-1/2`}>
-                        <span className="text-gray-400 font-bold text-sm">DZD</span>
+                  {/* Add new paper type form */}
+                  {showAddPaperTypeForm && (
+                    <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                      <p className="text-xs font-semibold text-indigo-700 mb-3">{isRtl ? "إضافة نوع ورق جديد" : "Add New Paper Type"}</p>
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">{isRtl ? "الاسم (EN)" : "Name (EN)"}</label>
+                          <input
+                            value={newPaperTypeForm.name}
+                            onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, name: e.target.value })}
+                            placeholder="e.g. Matte"
+                            className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">{isRtl ? "الاسم (AR)" : "Name (AR)"}</label>
+                          <input
+                            value={newPaperTypeForm.nameAr}
+                            onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, nameAr: e.target.value })}
+                            placeholder="مثلاً: مطفي"
+                            dir="rtl"
+                            className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">{isRtl ? "سعر ملون (DZD)" : "Color price (DZD)"}</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={newPaperTypeForm.colorPerPage}
+                            onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, colorPerPage: parseFloat(e.target.value) || 0 })}
+                            className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">{isRtl ? "سعر أبيض/أسود (DZD)" : "B&W price (DZD)"}</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={newPaperTypeForm.blackWhitePerPage}
+                            onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, blackWhitePerPage: parseFloat(e.target.value) || 0 })}
+                            className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                          />
+                        </div>
                       </div>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        className={`w-full py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-14 pl-4" : "pl-14 pr-4"}`}
-                        value={glossyPrice}
-                        onChange={(e) => setGlossyPrice(parseFloat(e.target.value) || 0)}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1.5">
-                      {isRtl ? "لكل صفحة" : "per page"}
-                    </p>
-                  </div>
-
-                  {/* Cardboard Price */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      {isRtl ? "ورق مقوى" : "Cardboard Paper"}
-                    </label>
-                    <div className="relative">
-                      <div className={`absolute ${isRtl ? "right-4" : "left-4"} top-1/2 -translate-y-1/2`}>
-                        <span className="text-gray-400 font-bold text-sm">DZD</span>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={handleAddPaperType} className="px-4 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-semibold">
+                          {isRtl ? "إضافة" : "Add"}
+                        </button>
+                        <button type="button" onClick={() => { setShowAddPaperTypeForm(false); setNewPaperTypeForm({ name: "", nameAr: "", colorPerPage: 30, blackWhitePerPage: 15 }); }} className="px-4 py-1.5 text-xs bg-white text-gray-600 rounded-lg hover:bg-gray-50 border border-gray-200 transition font-medium">
+                          {isRtl ? "إلغاء" : "Cancel"}
+                        </button>
                       </div>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        className={`w-full py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all font-semibold text-gray-900 ${isRtl ? "pr-14 pl-4" : "pl-14 pr-4"}`}
-                        value={cardboardPrice}
-                        onChange={(e) => setCardboardPrice(parseFloat(e.target.value) || 0)}
-                      />
                     </div>
-                    <p className="text-xs text-gray-400 mt-1.5">
-                      {isRtl ? "لكل صفحة" : "per page"}
-                    </p>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>

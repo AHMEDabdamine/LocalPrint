@@ -312,9 +312,10 @@ app.put("/api/jobs/:id/preferences", (req, res) => {
     return res.status(404).json({ success: false, error: "Job not found" });
   }
 
-  const { colorMode, copies } = req.body;
+  const { colorMode, copies, paperType } = req.body;
   let finalColorMode = job.colorMode;
   let finalCopies = job.copies;
+  let finalPaperType = job.paperType || 'normal';
 
   if (colorMode === "color" || colorMode === "blackWhite") {
     finalColorMode = colorMode;
@@ -325,8 +326,12 @@ app.put("/api/jobs/:id/preferences", (req, res) => {
     finalCopies = parsedCopies;
   }
 
-  db.prepare('UPDATE jobs SET colorMode = ?, copies = ? WHERE id = ?')
-    .run(finalColorMode, finalCopies, jobId);
+  if (paperType && typeof paperType === 'string') {
+    finalPaperType = paperType;
+  }
+
+  db.prepare('UPDATE jobs SET colorMode = ?, copies = ?, paperType = ? WHERE id = ?')
+    .run(finalColorMode, finalCopies, finalPaperType, jobId);
 
   const updatedJob = db.prepare('SELECT * FROM jobs WHERE id = ?').get(jobId);
   console.log(
@@ -386,6 +391,9 @@ app.post("/api/settings", (req, res) => {
   try {
     if (req.body.shopName !== undefined) {
       updateSetting('shopName', req.body.shopName);
+    }
+    if (req.body.paperTypes && Array.isArray(req.body.paperTypes)) {
+      updateSetting('paperTypes', req.body.paperTypes);
     }
     if (req.body.pricing && typeof req.body.pricing === "object") {
       const currentSettings = getSettings();

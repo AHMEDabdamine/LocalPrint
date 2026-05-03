@@ -44,10 +44,14 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
     phone: "",
     notes: "",
   });
-  const [printPreferences, setPrintPreferences] = useState({
-    colorMode: "color" as "color" | "blackWhite",
+  const [printPreferences, setPrintPreferences] = useState<{
+    colorMode: "color" | "blackWhite";
+    copies: number;
+    paperType: string;
+  }>({
+    colorMode: "color",
     copies: 1,
-    paperType: "normal" as "normal" | "glossy" | "cardboard",
+    paperType: "normal",
   });
   const [selectedFiles, setSelectedFiles] = useState<FileStatus[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -134,17 +138,20 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
 
   // Helper to calculate price with discount for a file
   const getFilePriceWithDiscount = (file: File) => {
-    if (!shopSettings?.pricing) return null;
+    if (!shopSettings) return null;
 
-    const pt = printPreferences.paperType || "normal";
-    const pricePerPage =
-      pt === "glossy"
-        ? (shopSettings.pricing.glossyPerPage ?? 50.0)
-        : pt === "cardboard"
-        ? (shopSettings.pricing.cardboardPerPage ?? 40.0)
-        : printPreferences.colorMode === "blackWhite"
-        ? shopSettings.pricing.blackWhitePerPage
-        : shopSettings.pricing.colorPerPage;
+    const allPaperTypes = shopSettings.paperTypes && shopSettings.paperTypes.length > 0
+      ? shopSettings.paperTypes
+      : [
+          { id: "normal", name: "Normal", nameAr: "عادي", colorPerPage: shopSettings.pricing?.colorPerPage ?? 30.0, blackWhitePerPage: shopSettings.pricing?.blackWhitePerPage ?? 15.0 },
+          { id: "glossy", name: "Glossy", nameAr: "لامع", colorPerPage: shopSettings.pricing?.glossyPerPage ?? 50.0, blackWhitePerPage: shopSettings.pricing?.glossyPerPage ?? 50.0 },
+          { id: "cardboard", name: "Cardboard", nameAr: "ورق مقوى", colorPerPage: shopSettings.pricing?.cardboardPerPage ?? 40.0, blackWhitePerPage: shopSettings.pricing?.cardboardPerPage ?? 40.0 },
+        ];
+
+    const paperType = allPaperTypes.find(pt => pt.id === (printPreferences.paperType || "normal"));
+    const pricePerPage = paperType
+      ? (printPreferences.colorMode === "blackWhite" ? paperType.blackWhitePerPage : paperType.colorPerPage)
+      : (printPreferences.colorMode === "blackWhite" ? (shopSettings.pricing?.blackWhitePerPage ?? 15.0) : (shopSettings.pricing?.colorPerPage ?? 30.0));
 
     // Estimate page count
     const estimatedPages = file.type.includes("pdf")
@@ -627,31 +634,25 @@ const UploadView: React.FC<UploadViewProps> = ({ lang }) => {
               <label className="block text-xs font-medium text-gray-600 mb-2">
                 {isRtl ? "نوع الورق" : "Paper Type"}
               </label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={isUploading}
-                  onClick={() => setPrintPreferences({ ...printPreferences, paperType: "normal" })}
-                  className={`flex-1 px-3 py-2 text-sm font-medium rounded-md border transition ${printPreferences.paperType === "normal" ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"} disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {isRtl ? "عادي" : "Normal"}
-                </button>
-                <button
-                  type="button"
-                  disabled={isUploading}
-                  onClick={() => setPrintPreferences({ ...printPreferences, paperType: "glossy" })}
-                  className={`flex-1 px-3 py-2 text-sm font-medium rounded-md border transition ${printPreferences.paperType === "glossy" ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"} disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {isRtl ? "لامع" : "Glossy"}
-                </button>
-                <button
-                  type="button"
-                  disabled={isUploading}
-                  onClick={() => setPrintPreferences({ ...printPreferences, paperType: "cardboard" })}
-                  className={`flex-1 px-3 py-2 text-sm font-medium rounded-md border transition ${printPreferences.paperType === "cardboard" ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"} disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {isRtl ? "ورق مقوى" : "Cardboard"}
-                </button>
+              <div className="flex flex-wrap gap-2">
+                {(shopSettings?.paperTypes && shopSettings.paperTypes.length > 0
+                  ? shopSettings.paperTypes
+                  : [
+                      { id: "normal", name: "Normal", nameAr: "عادي" },
+                      { id: "glossy", name: "Glossy", nameAr: "لامع" },
+                      { id: "cardboard", name: "Cardboard", nameAr: "ورق مقوى" },
+                    ]
+                ).map((pt) => (
+                  <button
+                    key={pt.id}
+                    type="button"
+                    disabled={isUploading}
+                    onClick={() => setPrintPreferences({ ...printPreferences, paperType: pt.id })}
+                    className={`flex-1 min-w-[5rem] px-3 py-2 text-sm font-medium rounded-md border transition ${printPreferences.paperType === pt.id ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"} disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    {isRtl ? pt.nameAr : pt.name}
+                  </button>
+                ))}
               </div>
             </div>
           </div>

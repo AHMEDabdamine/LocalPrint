@@ -137,12 +137,24 @@ class StorageService {
 
   async updateJobPreferences(
     id: string,
-    preferences: { colorMode: "color" | "blackWhite"; copies: number },
+    preferences: { colorMode: "color" | "blackWhite"; copies: number; paperType?: string },
   ): Promise<void> {
     await this.safeFetch(`/api/jobs/${id}/preferences`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(preferences),
+    });
+  }
+
+  async saveSettings(settings: {
+    shopName?: string;
+    paperTypes?: import("../types").PaperType[];
+    pricing?: { colorPerPage: number; blackWhitePerPage: number; glossyPerPage?: number; cardboardPerPage?: number };
+  }): Promise<void> {
+    await this.safeFetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
     });
   }
 
@@ -155,29 +167,32 @@ class StorageService {
   async getSettings(): Promise<ShopSettings> {
     try {
       const settings = await this.safeFetch("/api/settings");
+      const pricing = settings?.pricing
+        ? {
+            colorPerPage: Number(settings.pricing.colorPerPage) || 30.0,
+            blackWhitePerPage: Number(settings.pricing.blackWhitePerPage) || 15.0,
+            glossyPerPage: Number(settings.pricing.glossyPerPage) || 50.0,
+            cardboardPerPage: Number(settings.pricing.cardboardPerPage) || 40.0,
+          }
+        : undefined;
+
+      const defaultPaperTypes = [
+        { id: "normal", name: "Normal", nameAr: "عادي", colorPerPage: pricing?.colorPerPage ?? 30.0, blackWhitePerPage: pricing?.blackWhitePerPage ?? 15.0 },
+        { id: "glossy", name: "Glossy", nameAr: "لامع", colorPerPage: pricing?.glossyPerPage ?? 50.0, blackWhitePerPage: pricing?.glossyPerPage ?? 50.0 },
+        { id: "cardboard", name: "Cardboard", nameAr: "ورق مقوى", colorPerPage: pricing?.cardboardPerPage ?? 40.0, blackWhitePerPage: pricing?.cardboardPerPage ?? 40.0 },
+      ];
+
       return {
         shopName: settings?.shopName || "PrintShop Hub",
         logoUrl: settings?.logoUrl || null,
-        pricing: settings?.pricing
-          ? {
-              colorPerPage: Number(settings.pricing.colorPerPage) || 30.0,
-              blackWhitePerPage: Number(settings.pricing.blackWhitePerPage) || 15.0,
-              glossyPerPage: Number(settings.pricing.glossyPerPage) || 50.0,
-              cardboardPerPage: Number(settings.pricing.cardboardPerPage) || 40.0,
-            }
-          : undefined,
+        pricing,
+        paperTypes: Array.isArray(settings?.paperTypes) && settings.paperTypes.length > 0
+          ? settings.paperTypes
+          : defaultPaperTypes,
       };
     } catch (e) {
       return { shopName: "PrintShop Hub", logoUrl: null };
     }
-  }
-
-  async saveSettings(settings: Partial<ShopSettings>): Promise<void> {
-    await this.safeFetch("/api/settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(settings),
-    });
   }
 
   async uploadLogo(file: File): Promise<string> {

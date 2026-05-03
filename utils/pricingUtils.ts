@@ -7,27 +7,29 @@ export interface PriceCalculation {
   currency: string;
 }
 
+export const DEFAULT_PAPER_TYPES = (pricing?: { colorPerPage: number; blackWhitePerPage: number; glossyPerPage?: number; cardboardPerPage?: number }) => [
+  { id: "normal", name: "Normal", nameAr: "عادي", colorPerPage: pricing?.colorPerPage ?? 30.0, blackWhitePerPage: pricing?.blackWhitePerPage ?? 15.0 },
+  { id: "glossy", name: "Glossy", nameAr: "لامع", colorPerPage: pricing?.glossyPerPage ?? 50.0, blackWhitePerPage: pricing?.glossyPerPage ?? 50.0 },
+  { id: "cardboard", name: "Cardboard", nameAr: "ورق مقوى", colorPerPage: pricing?.cardboardPerPage ?? 40.0, blackWhitePerPage: pricing?.cardboardPerPage ?? 40.0 },
+];
+
 export const calculatePrintPrice = (
   job: PrintJob,
   settings: ShopSettings,
   actualPages: number = 1,
 ): PriceCalculation => {
-  const pricing = settings.pricing || {
-    colorPerPage: 30.0,
-    blackWhitePerPage: 15.0,
-    glossyPerPage: 50.0,
-    cardboardPerPage: 40.0,
-  };
+  const paperTypeId = job.printPreferences?.paperType || "normal";
+  const colorMode = job.printPreferences?.colorMode || "color";
 
-  const paperType = job.printPreferences?.paperType || "normal";
-  const pricePerPage =
-    paperType === "glossy"
-      ? (pricing.glossyPerPage ?? 50.0)
-      : paperType === "cardboard"
-      ? (pricing.cardboardPerPage ?? 40.0)
-      : job.printPreferences?.colorMode === "blackWhite"
-      ? pricing.blackWhitePerPage
-      : pricing.colorPerPage;
+  const allPaperTypes = settings.paperTypes && settings.paperTypes.length > 0
+    ? settings.paperTypes
+    : DEFAULT_PAPER_TYPES(settings.pricing);
+
+  const paperType = allPaperTypes.find(pt => pt.id === paperTypeId);
+
+  const pricePerPage = paperType
+    ? (colorMode === "blackWhite" ? paperType.blackWhitePerPage : paperType.colorPerPage)
+    : (colorMode === "blackWhite" ? (settings.pricing?.blackWhitePerPage ?? 15.0) : (settings.pricing?.colorPerPage ?? 30.0));
 
   const copies = job.printPreferences?.copies || 1;
   const totalPages = actualPages * copies;

@@ -14,13 +14,21 @@ export interface PrintJob {
   fileSize: number;
   uploadDate: string;
   status: PrintStatus;
-  pageCount?: number; // Number of pages for PDF files
-  fileBlob?: Blob; // In a real app, this is a URL/Path on server
+  pageCount?: number;
+  fileBlob?: Blob;
   printPreferences?: {
     colorMode: "color" | "blackWhite";
     copies: number;
-    paperType?: "normal" | "glossy" | "cardboard";
+    paperType?: string;
   };
+}
+
+export interface PaperType {
+  id: string;
+  name: string;
+  nameAr: string;
+  colorPerPage: number;
+  blackWhitePerPage: number;
 }
 
 export interface ShopSettings {
@@ -29,9 +37,10 @@ export interface ShopSettings {
   pricing?: {
     colorPerPage: number;
     blackWhitePerPage: number;
-    glossyPerPage: number;
-    cardboardPerPage: number;
+    glossyPerPage?: number;
+    cardboardPerPage?: number;
   };
+  paperTypes?: PaperType[];
 }
 
 export type Language = "en" | "ar";
