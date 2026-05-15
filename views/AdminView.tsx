@@ -12,8 +12,36 @@ import {
 } from "../utils/pricingUtils";
 import { formatRelativeTime } from "../utils/timeUtils";
 import ImageEditor from "../components/ImageEditor";
-import ToastContainer, { useToast } from "../components/ToastContainer";
-import ConfirmDialog from "../components/ConfirmDialog";
+import { toast } from "../components/ui/use-toast";
+import { Toaster } from "../components/ui/toaster";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "../components/ui/dialog";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 
 interface AdminViewProps {
   lang: Language;
@@ -46,7 +74,7 @@ const AdminView: React.FC<AdminViewProps> = ({
   };
 
   const isRtl = lang === "ar";
-  const { toasts, success, error: showError, removeToast } = useToast();
+  // toast() imported from use-toast, called directly
 
   // Confirm dialog states
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
@@ -262,7 +290,7 @@ const AdminView: React.FC<AdminViewProps> = ({
   const handleSaveRule = async () => {
     try {
       if (!ruleFormData.name || ruleFormData.discount_value === undefined || ruleFormData.threshold === undefined) {
-        showError(isRtl ? "يرجى ملء جميع الحقول المطلوبة" : "Please fill all required fields");
+        toast({ title: isRtl ? "يرجى ملء جميع الحقول المطلوبة" : "Please fill all required fields", variant: "destructive" });
         return;
       }
 
@@ -280,17 +308,17 @@ const AdminView: React.FC<AdminViewProps> = ({
 
       if (isEditingRule && editingRule) {
         await storageService.updateDiscountRule(editingRule.id, ruleData);
-        success(isRtl ? "تم تحديث القاعدة بنجاح" : "Rule updated successfully");
+        toast({ title: isRtl ? "تم تحديث القاعدة بنجاح" : "Rule updated successfully", variant: "success" });
       } else {
         await storageService.createDiscountRule(ruleData);
-        success(isRtl ? "تم إنشاء القاعدة بنجاح" : "Rule created successfully");
+        toast({ title: isRtl ? "تم إنشاء القاعدة بنجاح" : "Rule created successfully", variant: "success" });
       }
 
       setShowRuleForm(false);
       loadDiscountRules();
     } catch (err) {
       console.error("Failed to save discount rule:", err);
-      showError(isRtl ? "فشل حفظ القاعدة" : "Failed to save rule");
+      toast({ title: isRtl ? "فشل حفظ القاعدة" : "Failed to save rule", variant: "destructive" });
     }
   };
 
@@ -302,11 +330,11 @@ const AdminView: React.FC<AdminViewProps> = ({
     if (deleteRuleConfirm) {
       try {
         await storageService.deleteDiscountRule(deleteRuleConfirm);
-        success(isRtl ? "تم حذف القاعدة بنجاح" : "Rule deleted successfully");
+        toast({ title: isRtl ? "تم حذف القاعدة بنجاح" : "Rule deleted successfully", variant: "success" });
         loadDiscountRules();
       } catch (err) {
         console.error("Failed to delete discount rule:", err);
-        showError(isRtl ? "فشل حذف القاعدة" : "Failed to delete rule");
+        toast({ title: isRtl ? "فشل حذف القاعدة" : "Failed to delete rule", variant: "destructive" });
       }
       setDeleteRuleConfirm(null);
     }
@@ -316,14 +344,10 @@ const AdminView: React.FC<AdminViewProps> = ({
     try {
       await storageService.updateDiscountRule(rule.id, { is_active: !rule.is_active });
       loadDiscountRules();
-      success(
-        !rule.is_active
-          ? (isRtl ? "تم تفعيل القاعدة" : "Rule activated")
-          : (isRtl ? "تم تعطيل القاعدة" : "Rule deactivated")
-      );
+      toast({ title: !rule.is_active ? (isRtl ? "تم تفعيل القاعدة" : "Rule activated") : (isRtl ? "تم تعطيل القاعدة" : "Rule deactivated"), variant: "success" });
     } catch (err) {
       console.error("Failed to toggle rule:", err);
-      showError(isRtl ? "فشل تحديث القاعدة" : "Failed to update rule");
+      toast({ title: isRtl ? "فشل تحديث القاعدة" : "Failed to update rule", variant: "destructive" });
     }
   };
 
@@ -460,7 +484,7 @@ const AdminView: React.FC<AdminViewProps> = ({
     setSelectedJobIds(new Set());
     setBulkDeleteConfirm(false);
     loadJobs();
-    success(isRtl ? `تم حذف ${ids.length} ملفات` : `${ids.length} files deleted successfully`);
+    toast({ title: isRtl ? `تم حذف ${ids.length} ملفات` : `${ids.length} files deleted successfully`, variant: "success" });
   };
 
   const handleBulkStatusUpdate = async () => {
@@ -480,11 +504,7 @@ const AdminView: React.FC<AdminViewProps> = ({
       setEditingJob(job);
       setEditingBlob(blob);
     } else {
-      showError(
-        isRtl
-          ? "تحرير الصور متاح لملفات الصور فقط."
-          : "Editing is only for image files.",
-      );
+      toast({ title: isRtl ? "تحرير الصور متاح لملفات الصور فقط." : "Editing is only for image files.", variant: "destructive" });
     }
   };
 
@@ -498,22 +518,16 @@ const AdminView: React.FC<AdminViewProps> = ({
         setEditingJob(null);
         setEditingBlob(null);
         loadJobs();
-        success(isRtl ? "تم تحديث الملف بنجاح" : "File updated successfully");
+        toast({ title: isRtl ? "تم تحديث الملف بنجاح" : "File updated successfully", variant: "success" });
       } catch (err) {
         console.error("Failed to update job file:", err);
-        showError(isRtl ? "فشل تحديث الملف." : "Failed to update file.");
+        toast({ title: isRtl ? "فشل تحديث الملف." : "Failed to update file.", variant: "destructive" });
       }
     }
   };
 
-  const handleStatusToggle = async (job: PrintJob) => {
-    const statusCycle: Record<string, PrintStatus> = {
-      [PrintStatus.PENDING]: PrintStatus.READY,
-      [PrintStatus.READY]: PrintStatus.PRINTED,
-      [PrintStatus.PRINTED]: PrintStatus.PENDING,
-    };
-    const newStatus = statusCycle[job.status] ?? PrintStatus.PENDING;
-    await storageService.updateStatus(job.id, newStatus);
+  const handleStatusChange = async (jobId: string, newStatus: PrintStatus) => {
+    await storageService.updateStatus(jobId, newStatus);
     loadJobs();
   };
 
@@ -533,7 +547,7 @@ const AdminView: React.FC<AdminViewProps> = ({
       await storageService.changePassword(passwordForm.current, passwordForm.newPass);
       setPasswordSuccess(true);
       setPasswordForm({ current: "", newPass: "", confirm: "" });
-      success(isRtl ? "تم تغيير كلمة المرور بنجاح" : "Password changed successfully");
+      toast({ title: isRtl ? "تم تغيير كلمة المرور بنجاح" : "Password changed successfully", variant: "success" });
     } catch {
       setPasswordError(isRtl ? "كلمة المرور الحالية غير صحيحة" : "Current password is incorrect");
     }
@@ -551,7 +565,7 @@ const AdminView: React.FC<AdminViewProps> = ({
       setSelectedJobIds(newSelected);
       setSingleDeleteConfirm(null);
       loadJobs();
-      success(isRtl ? "تم الحذف بنجاح" : "Deleted successfully");
+      toast({ title: isRtl ? "تم الحذف بنجاح" : "Deleted successfully", variant: "success" });
     }
   };
 
@@ -633,7 +647,7 @@ const AdminView: React.FC<AdminViewProps> = ({
     setPaperTypes(prev => [...prev, newPt]);
     setShowAddPaperTypeForm(false);
     setNewPaperTypeForm({ name: "", nameAr: "", colorPerPage: 30, blackWhitePerPage: 15 });
-    success(isRtl ? "تم إضافة نوع الورق. لا تنس حفظ الإعدادات!" : "Paper type added. Don't forget to save settings!");
+    toast({ title: isRtl ? "تم إضافة نوع الورق. لا تنس حفظ الإعدادات!" : "Paper type added. Don't forget to save settings!", variant: "success" });
   };
 
   const handleSavePaperType = (id: string) => {
@@ -650,7 +664,7 @@ const AdminView: React.FC<AdminViewProps> = ({
   const saveSettings = async () => {
     await storageService.saveSettings({ shopName, paperTypes });
     onSettingsUpdate({ ...currentSettings, shopName, paperTypes });
-    success(isRtl ? "تم الحفظ بنجاح" : "Settings saved successfully");
+    toast({ title: isRtl ? "تم الحفظ بنجاح" : "Settings saved successfully", variant: "success" });
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -660,9 +674,9 @@ const AdminView: React.FC<AdminViewProps> = ({
         const newLogoUrl = await storageService.uploadLogo(file);
         setLogoUrl(newLogoUrl);
         onSettingsUpdate({ ...currentSettings, logoUrl: newLogoUrl });
-        success(isRtl ? "تم رفع الشعار بنجاح" : "Logo uploaded successfully");
+        toast({ title: isRtl ? "تم رفع الشعار بنجاح" : "Logo uploaded successfully", variant: "success" });
       } catch (err) {
-        showError(isRtl ? "فشل رفع الشعار" : "Failed to upload logo");
+        toast({ title: isRtl ? "فشل رفع الشعار" : "Failed to upload logo", variant: "destructive" });
       }
     }
   };
@@ -721,114 +735,27 @@ const AdminView: React.FC<AdminViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
-            <button
-              onClick={handleBulkPrint}
-              title={t("bulkPrint")}
-              className="flex flex-col items-center gap-1 hover:text-indigo-400 transition"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-                ></path>
-              </svg>
-              <span className="text-[10px] hidden sm:block uppercase tracking-wider font-bold">
-                {t("print")}
-              </span>
-            </button>
-            <button
-              onClick={handleBulkDownload}
-              title={t("bulkDownload")}
-              className="flex flex-col items-center gap-1 hover:text-indigo-400 transition"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                ></path>
-              </svg>
-              <span className="text-[10px] hidden sm:block uppercase tracking-wider font-bold">
-                {t("download")}
-              </span>
-            </button>
-            <button
-              onClick={handleBulkStatusUpdate}
-              title={t("markAsPrinted")}
-              className="flex flex-col items-center gap-1 hover:text-green-400 transition"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                ></path>
-              </svg>
-              <span className="text-[10px] hidden sm:block uppercase tracking-wider font-bold">
-                {t("printed")}
-              </span>
-            </button>
-            <button
-              onClick={handleBulkDelete}
-              title={t("bulkDelete")}
-              className="flex flex-col items-center gap-1 hover:text-red-400 transition"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                ></path>
-              </svg>
-              <span className="text-[10px] hidden sm:block uppercase tracking-wider font-bold">
-                {t("delete")}
-              </span>
-            </button>
+            <Button variant="ghost" size="sm" onClick={handleBulkPrint} title={t("bulkPrint")} className="flex-col gap-1 h-auto text-inherit hover:text-indigo-400">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+              <span className="text-[10px] hidden sm:block uppercase tracking-wider font-bold">{t("print")}</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleBulkDownload} title={t("bulkDownload")} className="flex-col gap-1 h-auto text-inherit hover:text-indigo-400">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+              <span className="text-[10px] hidden sm:block uppercase tracking-wider font-bold">{t("download")}</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleBulkStatusUpdate} title={t("markAsPrinted")} className="flex-col gap-1 h-auto text-inherit hover:text-green-400">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <span className="text-[10px] hidden sm:block uppercase tracking-wider font-bold">{t("printed")}</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleBulkDelete} title={t("bulkDelete")} className="flex-col gap-1 h-auto text-inherit hover:text-red-400">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              <span className="text-[10px] hidden sm:block uppercase tracking-wider font-bold">{t("delete")}</span>
+            </Button>
           </div>
 
-          <button
-            onClick={() => setSelectedJobIds(new Set())}
-            className="ml-4 p-1 hover:bg-white/10 rounded-full transition"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M6 18L18 6M6 6l12 12"
-              ></path>
-            </svg>
-          </button>
+          <Button variant="ghost" size="icon" onClick={() => setSelectedJobIds(new Set())} className="ml-4 text-white hover:bg-white/10">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </Button>
         </div>
       )}
 
@@ -842,68 +769,32 @@ const AdminView: React.FC<AdminViewProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => (window.location.hash = "")}
-            className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-lg hover:bg-indigo-100 transition flex items-center gap-2 text-sm font-semibold"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-              ></path>
-            </svg>
+          <Button variant="outline" size="sm" onClick={() => (window.location.hash = "")}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
             {isRtl ? "صفحة الرفع" : "Upload Page"}
-          </button>
-          <button
-            onClick={onLogout}
-            className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-200 transition flex items-center gap-2 text-sm font-semibold"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-              ></path>
-            </svg>
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onLogout}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
             {t("logout")}
-          </button>
+          </Button>
         </div>
       </div>
 
-      <div className="flex border-b border-gray-100 mb-5 gap-6">
-        <button
+      <div className="flex border-b border-gray-100 mb-5 gap-1">
+        <Button
+          variant={activeTab === "jobs" ? "default" : "ghost"}
+          size="sm"
           onClick={() => setActiveTab("jobs")}
-          className={`pb-2.5 px-2 text-sm font-semibold transition-all ${
-            activeTab === "jobs"
-              ? "border-b-2 border-indigo-600 text-indigo-600"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
         >
           {t("jobs")}
-        </button>
-        <button
+        </Button>
+        <Button
+          variant={activeTab === "settings" ? "default" : "ghost"}
+          size="sm"
           onClick={() => setActiveTab("settings")}
-          className={`pb-2.5 px-2 text-sm font-semibold transition-all ${
-            activeTab === "settings"
-              ? "border-b-2 border-indigo-600 text-indigo-600"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
         >
           {t("settings")}
-        </button>
+        </Button>
       </div>
 
       <div className="min-h-[400px]">
@@ -957,20 +848,21 @@ const AdminView: React.FC<AdminViewProps> = ({
                 <div className={`absolute ${isRtl ? "right-3" : "left-3"} top-1/2 -translate-y-1/2 text-gray-400`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 </div>
-                <input
-                  type="text"
+                <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={isRtl ? "ابحث بالاسم أو رقم الهاتف..." : "Search by name or phone..."}
-                  className={`w-full bg-white border border-gray-200 rounded-xl py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all ${isRtl ? "pr-9 pl-4" : "pl-9 pr-4"}`}
+                  className={`${isRtl ? "pr-9 pl-4" : "pl-9 pr-4"}`}
                 />
                 {searchQuery && (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => setSearchQuery("")}
-                    className={`absolute ${isRtl ? "left-3" : "right-3"} top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600`}
+                    className={`absolute ${isRtl ? "left-1" : "right-1"} top-1/2 -translate-y-1/2 h-7 w-7`}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                  </button>
+                  </Button>
                 )}
               </div>
             )}
@@ -1224,171 +1116,81 @@ const AdminView: React.FC<AdminViewProps> = ({
                                     <td className="px-4 py-2 align-top">
                                       {job.printPreferences && (
                                         <div className="flex flex-col gap-2 w-max">
-                                          <button
+                                          <Button
                                             type="button"
-                                            title={
-                                              isRtl
-                                                ? "انقر للتبديل"
-                                                : "Toggle mode"
-                                            }
-                                            disabled={
-                                              savingPrefsJobId === job.id
-                                            }
-                                            onClick={() =>
-                                              handleToggleColorMode(job)
-                                            }
-                                            className={`text-xs px-2 py-1 rounded-lg font-medium cursor-pointer transition-all hover:shadow-sm select-none flex items-center justify-center gap-1.5 w-max ${
-                                              job.printPreferences.colorMode ===
-                                              "blackWhite"
-                                                ? "bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200"
-                                                : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
-                                            } disabled:opacity-50`}
+                                            title={isRtl ? "انقر للتبديل" : "Toggle mode"}
+                                            disabled={savingPrefsJobId === job.id}
+                                            onClick={() => handleToggleColorMode(job)}
+                                            variant={job.printPreferences.colorMode === "blackWhite" ? "secondary" : "default"}
+                                            size="sm"
+                                            className="text-xs h-7 px-2"
                                           >
                                             {savingPrefsJobId === job.id ? (
-                                              <svg
-                                                className="animate-spin w-3 h-3"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                              >
-                                                <circle
-                                                  className="opacity-25"
-                                                  cx="12"
-                                                  cy="12"
-                                                  r="10"
-                                                  stroke="currentColor"
-                                                  strokeWidth="4"
-                                                />
-                                                <path
-                                                  className="opacity-75"
-                                                  fill="currentColor"
-                                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                                                />
-                                              </svg>
+                                              <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                                             ) : (
                                               <>
-                                                <span className="text-[10px]">
-                                                  {job.printPreferences
-                                                    .colorMode === "blackWhite"
-                                                    ? "⚫"
-                                                    : "🎨"}
-                                                </span>
-                                                {job.printPreferences
-                                                  .colorMode === "blackWhite"
-                                                  ? isRtl
-                                                    ? "أبيض وأسود"
-                                                    : "B&W"
-                                                  : isRtl
-                                                    ? "ملون"
-                                                    : "Color"}
+                                                <span className="text-[10px]">{job.printPreferences.colorMode === "blackWhite" ? "⚫" : "🎨"}</span>
+                                                {job.printPreferences.colorMode === "blackWhite" ? (isRtl ? "أبيض وأسود" : "B&W") : (isRtl ? "ملون" : "Color")}
                                               </>
                                             )}
-                                          </button>
+                                          </Button>
 
                                           {/* Copies Stepper */}
                                           {editingCopiesJobId === job.id ? (
                                             <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-0.5 shadow-sm w-max">
-                                              <button
+                                              <Button
                                                 type="button"
-                                                onMouseDown={(e) =>
-                                                  e.preventDefault()
-                                                }
-                                                onClick={() =>
-                                                  setEditingCopiesValue((v) =>
-                                                    Math.max(1, v - 1),
-                                                  )
-                                                }
-                                                className="w-6 h-6 rounded-md hover:bg-gray-100 flex items-center justify-center text-gray-600 font-bold"
-                                              >
-                                                −
-                                              </button>
-                                              <input
+                                                variant="ghost"
+                                                size="icon"
+                                                className="w-6 h-6"
+                                                onMouseDown={(e) => e.preventDefault()}
+                                                onClick={() => setEditingCopiesValue((v) => Math.max(1, v - 1))}
+                                              >−</Button>
+                                              <Input
                                                 type="number"
                                                 min={1}
                                                 max={100}
                                                 autoFocus
                                                 value={editingCopiesValue}
-                                                onChange={(e) =>
-                                                  setEditingCopiesValue(
-                                                    parseInt(e.target.value) ||
-                                                      1,
-                                                  )
-                                                }
+                                                onChange={(e) => setEditingCopiesValue(parseInt(e.target.value) || 1)}
                                                 onKeyDown={(e) => {
-                                                  if (e.key === "Enter")
-                                                    handleSaveCopies(
-                                                      job,
-                                                      editingCopiesValue,
-                                                    );
-                                                  if (e.key === "Escape")
-                                                    setEditingCopiesJobId(null);
+                                                  if (e.key === "Enter") handleSaveCopies(job, editingCopiesValue);
+                                                  if (e.key === "Escape") setEditingCopiesJobId(null);
                                                 }}
-                                                onBlur={() =>
-                                                  handleSaveCopies(
-                                                    job,
-                                                    editingCopiesValue,
-                                                  )
-                                                }
-                                                className="w-10 text-center text-xs font-semibold bg-transparent focus:outline-none"
+                                                onBlur={() => handleSaveCopies(job, editingCopiesValue)}
+                                                className="w-10 text-center text-xs font-semibold h-7 px-0"
                                               />
-                                              <button
+                                              <Button
                                                 type="button"
-                                                onMouseDown={(e) =>
-                                                  e.preventDefault()
-                                                }
-                                                onClick={() =>
-                                                  setEditingCopiesValue((v) =>
-                                                    Math.min(100, v + 1),
-                                                  )
-                                                }
-                                                className="w-6 h-6 rounded-md hover:bg-gray-100 flex items-center justify-center text-gray-600 font-bold"
-                                              >
-                                                +
-                                              </button>
-                                              <button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="w-6 h-6"
+                                                onMouseDown={(e) => e.preventDefault()}
+                                                onClick={() => setEditingCopiesValue((v) => Math.min(100, v + 1))}
+                                              >+</Button>
+                                              <Button
                                                 type="button"
-                                                onMouseDown={(e) =>
-                                                  e.preventDefault()
-                                                }
-                                                onClick={() =>
-                                                  handleSaveCopies(
-                                                    job,
-                                                    editingCopiesValue,
-                                                  )
-                                                }
-                                                className="w-6 h-6 rounded-md bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 ml-1"
+                                                size="icon"
+                                                className="w-6 h-6 ml-1"
+                                                onMouseDown={(e) => e.preventDefault()}
+                                                onClick={() => handleSaveCopies(job, editingCopiesValue)}
                                               >
-                                                <svg
-                                                  className="w-3 h-3"
-                                                  fill="none"
-                                                  stroke="currentColor"
-                                                  viewBox="0 0 24 24"
-                                                >
-                                                  <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth="3"
-                                                    d="M5 13l4 4L19 7"
-                                                  />
-                                                </svg>
-                                              </button>
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                                              </Button>
                                             </div>
                                           ) : (
-                                            <button
+                                            <Button
                                               type="button"
+                                              variant="outline"
+                                              size="sm"
+                                              className="text-xs h-7"
                                               onClick={() => {
                                                 setEditingCopiesJobId(job.id);
-                                                setEditingCopiesValue(
-                                                  job.printPreferences
-                                                    ?.copies || 1,
-                                                );
+                                                setEditingCopiesValue(job.printPreferences?.copies || 1);
                                               }}
-                                              className="text-xs px-2 py-1 bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-lg font-medium cursor-pointer transition-all hover:shadow-sm w-max text-left"
                                             >
-                                              ×
-                                              {job.printPreferences?.copies ||
-                                                1}{" "}
-                                              {isRtl ? "نسخ" : "copies"}
-                                            </button>
+                                              ×{job.printPreferences?.copies || 1} {isRtl ? "نسخ" : "copies"}
+                                            </Button>
                                           )}
 
                                           {/* Paper Type Badge */}
@@ -1464,104 +1266,37 @@ const AdminView: React.FC<AdminViewProps> = ({
                                     <td className="px-4 py-2 align-top">
                                       <div className="flex flex-wrap gap-1 w-max">
                                         {!officeFile && (
-                                          <button
-                                            onClick={() => handlePrint(job)}
-                                            title={t("print")}
-                                            className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition"
-                                          >
-                                            <svg
-                                              className="w-5 h-5"
-                                              fill="none"
-                                              stroke="currentColor"
-                                              viewBox="0 0 24 24"
-                                            >
-                                              <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth="2"
-                                                d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-                                              ></path>
-                                            </svg>
-                                          </button>
+                                          <Button variant="ghost" size="icon" onClick={() => handlePrint(job)} title={t("print")} className="text-blue-600 hover:bg-blue-100 hover:text-blue-700">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                          </Button>
                                         )}
-                                        <button
-                                          onClick={() => handleEdit(job)}
-                                          title={t("edit")}
-                                          className="p-1.5 text-orange-600 hover:bg-orange-100 rounded-lg transition"
-                                        >
-                                          <svg
-                                            className="w-5 h-5"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                          >
-                                            <path
-                                              strokeLinecap="round"
-                                              strokeLinejoin="round"
-                                              strokeWidth="2"
-                                              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                                            ></path>
-                                          </svg>
-                                        </button>
-                                        <button
-                                          onClick={() => handleDownload(job)}
-                                          title={t("download")}
-                                          className="p-1.5 text-indigo-600 hover:bg-indigo-100 rounded-lg transition"
-                                        >
-                                          <svg
-                                            className="w-5 h-5"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                          >
-                                            <path
-                                              strokeLinecap="round"
-                                              strokeLinejoin="round"
-                                              strokeWidth="2"
-                                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                                            ></path>
-                                          </svg>
-                                        </button>
-                                        <button
-                                          onClick={() =>
-                                            handleStatusToggle(job)
-                                          }
-                                          title={t("status")}
-                                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-lg transition"
-                                        >
-                                          <svg
-                                            className="w-5 h-5"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                          >
-                                            <path
-                                              strokeLinecap="round"
-                                              strokeLinejoin="round"
-                                              strokeWidth="2"
-                                              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                                            ></path>
-                                          </svg>
-                                        </button>
-                                        <button
-                                          onClick={() => handleDelete(job.id)}
-                                          title={t("delete")}
-                                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition"
-                                        >
-                                          <svg
-                                            className="w-5 h-5"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                          >
-                                            <path
-                                              strokeLinecap="round"
-                                              strokeLinejoin="round"
-                                              strokeWidth="2"
-                                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                            ></path>
-                                          </svg>
-                                        </button>
+                                        <Button variant="ghost" size="icon" onClick={() => handleEdit(job)} title={t("edit")} className="text-orange-600 hover:bg-orange-100 hover:text-orange-700">
+                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                        </Button>
+                                        <Button variant="ghost" size="icon" onClick={() => handleDownload(job)} title={t("download")} className="text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700">
+                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                        </Button>
+                                        <Select value={job.status} onValueChange={(val) => handleStatusChange(job.id, val as PrintStatus)}>
+                                          <SelectTrigger className={`h-8 w-9 border-0 p-0 ${job.status === PrintStatus.PRINTED ? "text-green-600 hover:bg-green-100" : job.status === PrintStatus.READY ? "text-blue-600 hover:bg-blue-100" : "text-yellow-600 hover:bg-yellow-100"}`}>
+                                            <SelectValue>
+                                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                            </SelectValue>
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value={PrintStatus.PENDING}>
+                                              <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-yellow-500 inline-block"></span>{isRtl ? "قيد الانتظار" : "Pending"}</span>
+                                            </SelectItem>
+                                            <SelectItem value={PrintStatus.READY}>
+                                              <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>{isRtl ? "جاهز" : "Ready"}</span>
+                                            </SelectItem>
+                                            <SelectItem value={PrintStatus.PRINTED}>
+                                              <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>{isRtl ? "تمت الطباعة" : "Printed"}</span>
+                                            </SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                        <Button variant="ghost" size="icon" onClick={() => handleDelete(job.id)} title={t("delete")} className="text-red-600 hover:bg-red-100 hover:text-red-700">
+                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                        </Button>
                                       </div>
                                     </td>
                                   </tr>
@@ -1597,51 +1332,31 @@ const AdminView: React.FC<AdminViewProps> = ({
             {/* Settings Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {/* Shop Info Card */}
-              <div className="bg-white rounded-2xl shadow-lg shadow-indigo-100/30 border border-gray-100 overflow-hidden">
-                <div className="px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                    </div>
+                    <div>
+                      <CardTitle className="text-base">{isRtl ? "معلومات المحل" : "Shop Information"}</CardTitle>
+                      <CardDescription>{isRtl ? "الاسم والشعار" : "Name & logo"}</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">{t("shopName")}</label>
+                    <Input value={shopName} onChange={(e) => setShopName(e.target.value)} placeholder={isRtl ? "اسم المحل" : "Print Shop Name"} />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900">
-                      {isRtl ? "معلومات المحل" : "Shop Information"}
-                    </h3>
-                    <p className="text-xs text-gray-500">
-                      {isRtl ? "الاسم والشعار" : "Name & logo"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-5 sm:p-6 space-y-5">
-                  {/* Shop Name */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      {t("shopName")}
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-gray-900 placeholder-gray-400"
-                      value={shopName}
-                      onChange={(e) => setShopName(e.target.value)}
-                      placeholder={isRtl ? "اسم المحل" : "Print Shop Name"}
-                    />
-                  </div>
-
-                  {/* Logo Upload */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      {t("shopLogo")}
-                    </label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">{t("shopLogo")}</label>
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                       {logoUrl ? (
                         <div className="w-20 h-20 rounded-xl border-2 border-white shadow-md overflow-hidden bg-gray-100 flex-shrink-0">
-                          <img
-                            src={logoUrl}
-                            alt="Logo Preview"
-                            className="w-full h-full object-contain"
-                          />
+                          <img src={logoUrl} alt="Logo Preview" className="w-full h-full object-contain" />
                         </div>
                       ) : (
                         <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center flex-shrink-0">
@@ -1651,64 +1366,42 @@ const AdminView: React.FC<AdminViewProps> = ({
                         </div>
                       )}
                       <div className="flex-1 w-full">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleLogoUpload}
-                          className="block w-full text-sm text-gray-500 
-                            file:mr-4 file:py-2.5 file:px-4 
-                            file:rounded-xl file:border-0 
-                            file:text-sm file:font-semibold 
-                            file:bg-indigo-50 file:text-indigo-600 
-                            hover:file:bg-indigo-100 
-                            file:cursor-pointer file:transition-all 
-                            cursor-pointer"
-                        />
-                        <p className="text-xs text-gray-400 mt-2">
-                          {isRtl ? "PNG, JPG أو GIF (الحد الأقصى 2MB)" : "PNG, JPG or GIF (max 2MB)"}
-                        </p>
+                        <Input type="file" accept="image/*" onChange={handleLogoUpload} className="file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 file:cursor-pointer cursor-pointer" />
+                        <p className="text-xs text-gray-400 mt-2">{isRtl ? "PNG, JPG أو GIF (الحد الأقصى 2MB)" : "PNG, JPG or GIF (max 2MB)"}</p>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
 
               {/* Pricing Card */}
-              <div className="bg-white rounded-2xl shadow-lg shadow-indigo-100/30 border border-gray-100 overflow-hidden">
-                <div className="px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <CardTitle className="text-base">{isRtl ? "أسعار الطباعة" : "Printing Prices"}</CardTitle>
+                      <CardDescription>{isRtl ? "التسعير لكل صفحة" : "Per page pricing"}</CardDescription>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900">
-                      {isRtl ? "أسعار الطباعة" : "Printing Prices"}
-                    </h3>
-                    <p className="text-xs text-gray-500">
-                      {isRtl ? "التسعير لكل صفحة" : "Per page pricing"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-5 sm:p-6 space-y-4">
-                  {/* Paper Types Table */}
+                </CardHeader>
+                <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-semibold text-gray-700">
                       {isRtl ? "أنواع الورق وأسعارها" : "Paper Types & Pricing"}
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => { setShowAddPaperTypeForm(true); setEditingPaperTypeId(null); }}
-                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 active:scale-95 transition font-medium"
-                    >
+                    <Button size="sm" onClick={() => { setShowAddPaperTypeForm(true); setEditingPaperTypeId(null); }}>
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
                       {isRtl ? "إضافة نوع" : "Add Type"}
-                    </button>
+                    </Button>
                   </div>
 
-                  <div className="border border-gray-100 rounded-xl overflow-hidden">
-                    <table className="w-full text-sm">
+                  <div className="overflow-x-auto border border-gray-100 rounded-xl">
+                    <table className="w-full text-sm min-w-[400px]">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-100">
                           <th className={`px-3 py-2.5 text-xs font-semibold text-gray-500 ${isRtl ? "text-right" : "text-left"}`}>{isRtl ? "نوع الورق" : "Paper Type"}</th>
@@ -1723,52 +1416,19 @@ const AdminView: React.FC<AdminViewProps> = ({
                             {editingPaperTypeId === pt.id && editingPaperTypeForm ? (
                               <>
                                 <td className="px-3 py-2">
-                                  <input
-                                    value={editingPaperTypeForm.name}
-                                    onChange={e => setEditingPaperTypeForm({ ...editingPaperTypeForm, name: e.target.value })}
-                                    className="w-full px-2 py-1 text-xs border border-indigo-300 rounded-lg mb-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                    placeholder="EN"
-                                  />
-                                  <input
-                                    value={editingPaperTypeForm.nameAr}
-                                    onChange={e => setEditingPaperTypeForm({ ...editingPaperTypeForm, nameAr: e.target.value })}
-                                    className="w-full px-2 py-1 text-xs border border-indigo-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                    placeholder="AR"
-                                    dir="rtl"
-                                  />
+                                  <Input value={editingPaperTypeForm.name} onChange={e => setEditingPaperTypeForm({ ...editingPaperTypeForm, name: e.target.value })} placeholder="EN" className="text-xs mb-1 h-7" />
+                                  <Input value={editingPaperTypeForm.nameAr} onChange={e => setEditingPaperTypeForm({ ...editingPaperTypeForm, nameAr: e.target.value })} placeholder="AR" className="text-xs h-7" />
                                 </td>
                                 <td className="px-3 py-2">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.5"
-                                    value={editingPaperTypeForm.colorPerPage}
-                                    onChange={e => setEditingPaperTypeForm({ ...editingPaperTypeForm, colorPerPage: parseFloat(e.target.value) || 0 })}
-                                    className="w-20 px-2 py-1 text-xs border border-indigo-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                  />
+                                  <Input type="number" min="0" step="0.5" value={editingPaperTypeForm.colorPerPage} onChange={e => setEditingPaperTypeForm({ ...editingPaperTypeForm, colorPerPage: parseFloat(e.target.value) || 0 })} className="w-20 text-xs h-7" />
                                 </td>
                                 <td className="px-3 py-2">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.5"
-                                    value={editingPaperTypeForm.blackWhitePerPage}
-                                    onChange={e => setEditingPaperTypeForm({ ...editingPaperTypeForm, blackWhitePerPage: parseFloat(e.target.value) || 0 })}
-                                    className="w-20 px-2 py-1 text-xs border border-indigo-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                  />
+                                  <Input type="number" min="0" step="0.5" value={editingPaperTypeForm.blackWhitePerPage} onChange={e => setEditingPaperTypeForm({ ...editingPaperTypeForm, blackWhitePerPage: parseFloat(e.target.value) || 0 })} className="w-20 text-xs h-7" />
                                 </td>
                                 <td className="px-3 py-2">
                                   <div className="flex gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSavePaperType(pt.id)}
-                                      className="px-2 py-1 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
-                                    >✓</button>
-                                    <button
-                                      type="button"
-                                      onClick={() => { setEditingPaperTypeId(null); setEditingPaperTypeForm(null); }}
-                                      className="px-2 py-1 text-xs bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 transition"
-                                    >✕</button>
+                                    <Button size="sm" variant="default" onClick={() => handleSavePaperType(pt.id)}>✓</Button>
+                                    <Button size="sm" variant="outline" onClick={() => { setEditingPaperTypeId(null); setEditingPaperTypeForm(null); }}>✕</Button>
                                   </div>
                                 </td>
                               </>
@@ -1788,23 +1448,13 @@ const AdminView: React.FC<AdminViewProps> = ({
                                 </td>
                                 <td className="px-3 py-3">
                                   <div className="flex gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => { setEditingPaperTypeId(pt.id); setEditingPaperTypeForm({ name: pt.name, nameAr: pt.nameAr, colorPerPage: pt.colorPerPage, blackWhitePerPage: pt.blackWhitePerPage }); setShowAddPaperTypeForm(false); }}
-                                      className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition"
-                                      title="Edit"
-                                    >
+                                    <Button variant="ghost" size="icon" onClick={() => { setEditingPaperTypeId(pt.id); setEditingPaperTypeForm({ name: pt.name, nameAr: pt.nameAr, colorPerPage: pt.colorPerPage, blackWhitePerPage: pt.blackWhitePerPage }); setShowAddPaperTypeForm(false); }} title="Edit">
                                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536M9 11l6.071-6.071a2.5 2.5 0 113.536 3.536L12.536 14.5a2 2 0 01-.93.534l-3.192.798.798-3.192a2 2 0 01.534-.93L9 11z"/></svg>
-                                    </button>
+                                    </Button>
                                     {paperTypes.length > 1 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeletePaperType(pt.id)}
-                                        className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition"
-                                        title="Delete"
-                                      >
+                                      <Button variant="ghost" size="icon" onClick={() => handleDeletePaperType(pt.id)} title="Delete">
                                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                      </button>
+                                      </Button>
                                     )}
                                   </div>
                                 </td>
@@ -1816,180 +1466,118 @@ const AdminView: React.FC<AdminViewProps> = ({
                     </table>
                   </div>
 
-                  {/* Add Paper Type Modal */}
-                  {showAddPaperTypeForm && (
-                    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
-                      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setShowAddPaperTypeForm(false); setNewPaperTypeForm({ name: "", nameAr: "", colorPerPage: 30, blackWhitePerPage: 15 }); }} />
-                      <div className={`relative bg-white rounded-2xl shadow-2xl max-w-md w-full ${isRtl ? "rtl" : ""}`}>
-                        <div className="px-6 py-4 border-b border-gray-100">
-                          <h3 className="text-lg font-bold text-gray-900">
-                            {isRtl ? "إضافة نوع ورق جديد" : "Add New Paper Type"}
-                          </h3>
+                  {/* Add Paper Type Dialog */}
+                  <Dialog open={showAddPaperTypeForm} onOpenChange={(open) => { if (!open) { setShowAddPaperTypeForm(false); setNewPaperTypeForm({ name: "", nameAr: "", colorPerPage: 30, blackWhitePerPage: 15 }); }}}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>{isRtl ? "إضافة نوع ورق جديد" : "Add New Paper Type"}</DialogTitle>
+                      </DialogHeader>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1.5">{isRtl ? "الاسم (EN)" : "Name (EN)"}</label>
+                          <Input
+                            value={newPaperTypeForm.name}
+                            onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, name: e.target.value })}
+                            placeholder="e.g. Matte"
+                          />
                         </div>
-                        <div className="p-6 space-y-4">
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{isRtl ? "الاسم (EN)" : "Name (EN)"}</label>
-                              <input
-                                value={newPaperTypeForm.name}
-                                onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, name: e.target.value })}
-                                placeholder="e.g. Matte"
-                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{isRtl ? "الاسم (AR)" : "Name (AR)"}</label>
-                              <input
-                                value={newPaperTypeForm.nameAr}
-                                onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, nameAr: e.target.value })}
-                                placeholder="مثلاً: مطفي"
-                                dir="rtl"
-                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{isRtl ? "سعر ملون (DZD)" : "Color (DZD)"}</label>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.5"
-                                value={newPaperTypeForm.colorPerPage}
-                                onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, colorPerPage: parseFloat(e.target.value) || 0 })}
-                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{isRtl ? "سعر أبيض/أسود (DZD)" : "B&W (DZD)"}</label>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.5"
-                                value={newPaperTypeForm.blackWhitePerPage}
-                                onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, blackWhitePerPage: parseFloat(e.target.value) || 0 })}
-                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
-                              />
-                            </div>
-                          </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1.5">{isRtl ? "الاسم (AR)" : "Name (AR)"}</label>
+                          <Input
+                            value={newPaperTypeForm.nameAr}
+                            onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, nameAr: e.target.value })}
+                            placeholder="مثلاً: مطفي"
+                          />
                         </div>
-                        <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
-                          <button
-                            type="button"
-                            onClick={handleAddPaperType}
-                            className="flex-1 bg-indigo-600 text-white font-bold py-2.5 rounded-xl hover:bg-indigo-700 transition-all"
-                          >
-                            {isRtl ? "إضافة" : "Add"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setShowAddPaperTypeForm(false); setNewPaperTypeForm({ name: "", nameAr: "", colorPerPage: 30, blackWhitePerPage: 15 }); }}
-                            className="flex-1 bg-gray-100 text-gray-700 font-bold py-2.5 rounded-xl hover:bg-gray-200 transition-all"
-                          >
-                            {isRtl ? "إلغاء" : "Cancel"}
-                          </button>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1.5">{isRtl ? "سعر ملون (DZD)" : "Color (DZD)"}</label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={newPaperTypeForm.colorPerPage}
+                            onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, colorPerPage: parseFloat(e.target.value) || 0 })}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1.5">{isRtl ? "سعر أبيض/أسود (DZD)" : "B&W (DZD)"}</label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={newPaperTypeForm.blackWhitePerPage}
+                            onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, blackWhitePerPage: parseFloat(e.target.value) || 0 })}
+                          />
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+                      <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => { setShowAddPaperTypeForm(false); setNewPaperTypeForm({ name: "", nameAr: "", colorPerPage: 30, blackWhitePerPage: 15 }); }}>
+                          {isRtl ? "إلغاء" : "Cancel"}
+                        </Button>
+                        <Button onClick={handleAddPaperType}>
+                          {isRtl ? "إضافة" : "Add"}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Password Change Card */}
-            <div className="bg-white rounded-2xl shadow-lg shadow-indigo-100/30 border border-gray-100 overflow-hidden lg:col-span-2">
-              <div className="px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                  </svg>
+            <Card className="lg:col-span-2">
+              <CardHeader className="flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">{isRtl ? "تغيير كلمة المرور" : "Change Password"}</CardTitle>
+                    <CardDescription>{isRtl ? "تحديث كلمة مرور المسؤول" : "Update admin password"}</CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold text-gray-900">
-                    {isRtl ? "تغيير كلمة المرور" : "Change Password"}
-                  </h3>
-                  <p className="text-xs text-gray-500">
-                    {isRtl ? "تحديث كلمة مرور المسؤول" : "Update admin password"}
-                  </p>
-                </div>
-              </div>
-              <form onSubmit={handleChangePassword} className="p-5 sm:p-6">
+              </CardHeader>
+              <form onSubmit={handleChangePassword} className="p-5 sm:p-6 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      {isRtl ? "كلمة المرور الحالية" : "Current Password"}
-                    </label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">{isRtl ? "كلمة المرور الحالية" : "Current Password"}</label>
                     <div className="relative">
-                      <input
-                        type={showPasswords.current ? "text" : "password"}
-                        value={passwordForm.current}
-                        onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
-                        className="w-full px-4 py-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-400/20 outline-none transition-all"
-                        placeholder="••••••••"
-                        required
-                      />
-                      <button type="button" onClick={() => setShowPasswords(p => ({ ...p, current: !p.current }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition" tabIndex={-1}>
+                      <Input type={showPasswords.current ? "text" : "password"} value={passwordForm.current} onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })} placeholder="••••••••" required className="pr-10" />
+                      <Button type="button" variant="ghost" size="icon" onClick={() => setShowPasswords(p => ({ ...p, current: !p.current }))} className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" tabIndex={-1}>
                         {showPasswords.current ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      {isRtl ? "كلمة المرور الجديدة" : "New Password"}
-                    </label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">{isRtl ? "كلمة المرور الجديدة" : "New Password"}</label>
                     <div className="relative">
-                      <input
-                        type={showPasswords.newPass ? "text" : "password"}
-                        value={passwordForm.newPass}
-                        onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })}
-                        className="w-full px-4 py-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-400/20 outline-none transition-all"
-                        placeholder="••••••••"
-                        required
-                      />
-                      <button type="button" onClick={() => setShowPasswords(p => ({ ...p, newPass: !p.newPass }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition" tabIndex={-1}>
+                      <Input type={showPasswords.newPass ? "text" : "password"} value={passwordForm.newPass} onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })} placeholder="••••••••" required className="pr-10" />
+                      <Button type="button" variant="ghost" size="icon" onClick={() => setShowPasswords(p => ({ ...p, newPass: !p.newPass }))} className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" tabIndex={-1}>
                         {showPasswords.newPass ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      {isRtl ? "تأكيد كلمة المرور" : "Confirm Password"}
-                    </label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">{isRtl ? "تأكيد كلمة المرور" : "Confirm Password"}</label>
                     <div className="relative">
-                      <input
-                        type={showPasswords.confirm ? "text" : "password"}
-                        value={passwordForm.confirm}
-                        onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
-                        className="w-full px-4 py-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-400/20 outline-none transition-all"
-                        placeholder="••••••••"
-                        required
-                      />
-                      <button type="button" onClick={() => setShowPasswords(p => ({ ...p, confirm: !p.confirm }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition" tabIndex={-1}>
+                      <Input type={showPasswords.confirm ? "text" : "password"} value={passwordForm.confirm} onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })} placeholder="••••••••" required className="pr-10" />
+                      <Button type="button" variant="ghost" size="icon" onClick={() => setShowPasswords(p => ({ ...p, confirm: !p.confirm }))} className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" tabIndex={-1}>
                         {showPasswords.confirm ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
-                {passwordError && (
-                  <p className="mt-3 text-sm text-red-600 font-medium">{passwordError}</p>
-                )}
-                {passwordSuccess && (
-                  <p className="mt-3 text-sm text-green-600 font-medium">
-                    {isRtl ? "✓ تم تغيير كلمة المرور بنجاح" : "✓ Password changed successfully"}
-                  </p>
-                )}
-                <div className="mt-4">
-                  <button
-                    type="submit"
-                    className="px-6 py-2.5 bg-red-600 text-white text-sm font-bold rounded-xl hover:bg-red-700 transition-all"
-                  >
-                    {isRtl ? "تغيير كلمة المرور" : "Change Password"}
-                  </button>
-                </div>
+                {passwordError && <p className="text-sm text-red-600 font-medium">{passwordError}</p>}
+                {passwordSuccess && <p className="text-sm text-green-600 font-medium">{isRtl ? "✓ تم تغيير كلمة المرور بنجاح" : "✓ Password changed successfully"}</p>}
+                <Button type="submit" variant="destructive">{isRtl ? "تغيير كلمة المرور" : "Change Password"}</Button>
               </form>
-            </div>
+            </Card>
 
             {/* Discount Rules Card - Full Width */}
-            <div className="bg-white rounded-2xl shadow-lg shadow-indigo-100/30 border border-gray-100 overflow-hidden lg:col-span-2">
-              <div className="px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+            <Card className="lg:col-span-2">
+              <CardHeader className="flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1997,26 +1585,19 @@ const AdminView: React.FC<AdminViewProps> = ({
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900">
-                      {isRtl ? "قواعد الخصم" : "Discount Rules"}
-                    </h3>
-                    <p className="text-xs text-gray-500">
-                      {isRtl ? "خصومات تلقائية للطباعة بالجملة" : "Automatic bulk print discounts"}
-                    </p>
+                    <CardTitle className="text-base">{isRtl ? "قواعد الخصم" : "Discount Rules"}</CardTitle>
+                    <CardDescription>{isRtl ? "خصومات تلقائية للطباعة بالجملة" : "Automatic bulk print discounts"}</CardDescription>
                   </div>
                 </div>
-                <button
-                  onClick={handleAddRule}
-                  className="px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-xl hover:bg-purple-700 transition-all flex items-center gap-2"
-                >
+                <Button size="sm" onClick={handleAddRule}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                   </svg>
                   {isRtl ? "إضافة قاعدة" : "Add Rule"}
-                </button>
-              </div>
+                </Button>
+              </CardHeader>
 
-              <div className="p-5 sm:p-6">
+              <CardContent>
                 {discountRules.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2041,18 +1622,17 @@ const AdminView: React.FC<AdminViewProps> = ({
                         <div className="flex items-center gap-4">
                           {/* Active Toggle */}
                           <button
+                            type="button"
                             onClick={() => handleToggleRuleActive(rule)}
-                            className={`w-12 h-6 rounded-full transition-all relative ${
+                            className={`relative w-12 h-6 rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-purple-500/40 ${
                               rule.is_active ? "bg-purple-600" : "bg-gray-300"
                             }`}
                           >
-                            <div
-                              className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300 ease-in-out ${
-                                isRtl
-                                  ? (rule.is_active ? "right-7" : "right-1")
-                                  : (rule.is_active ? "left-7" : "left-1")
-                              }`}
-                            />
+                            <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300 ${
+                              isRtl
+                                ? (rule.is_active ? "right-[1.625rem]" : "right-0.5")
+                                : (rule.is_active ? "left-[1.625rem]" : "left-0.5")
+                            }`} />
                           </button>
 
                           <div>
@@ -2078,29 +1658,23 @@ const AdminView: React.FC<AdminViewProps> = ({
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEditRule(rule)}
-                            className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all"
-                          >
+                          <Button variant="ghost" size="icon" onClick={() => handleEditRule(rule)}>
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteRule(rule.id)}
-                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                          >
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteRule(rule.id)}>
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
             {/* Quick Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-6">
@@ -2145,268 +1719,234 @@ const AdminView: React.FC<AdminViewProps> = ({
                   ? "سيتم حفظ التغييرات فورًا"
                   : "Changes will be saved immediately"}
               </p>
-              <button
-                onClick={saveSettings}
-                className="w-full sm:w-auto bg-indigo-600 text-white font-bold py-3.5 px-8 rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98] flex items-center justify-center gap-2"
-              >
+              <Button onClick={saveSettings} className="shadow-lg">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                 </svg>
                 {t("saveSettings")}
-              </button>
+              </Button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Toast Notifications */}
-      <ToastContainer toasts={toasts} onRemove={removeToast} isRtl={isRtl} />
+      {/* Bulk Delete Confirmation */}
+      <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{isRtl ? "حذف متعدد" : "Bulk Delete"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {isRtl ? `هل أنت متأكد من حذف ${selectedJobIds.size} ملف؟` : `Are you sure you want to delete ${selectedJobIds.size} files?`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{isRtl ? "إلغاء" : "Cancel"}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{isRtl ? "حذف" : "Delete"}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      {/* Bulk Delete Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={bulkDeleteConfirm}
-        title={isRtl ? "حذف متعدد" : "Bulk Delete"}
-        message={
-          isRtl
-            ? `هل أنت متأكد من حذف ${selectedJobIds.size} ملف؟`
-            : `Are you sure you want to delete ${selectedJobIds.size} files?`
-        }
-        confirmText={isRtl ? "حذف" : "Delete"}
-        cancelText={isRtl ? "إلغاء" : "Cancel"}
-        onConfirm={confirmBulkDelete}
-        onCancel={() => setBulkDeleteConfirm(false)}
-        isDanger={true}
-        isRtl={isRtl}
-      />
+      {/* Single Delete Confirmation */}
+      <AlertDialog open={singleDeleteConfirm !== null} onOpenChange={(open) => { if (!open) setSingleDeleteConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{isRtl ? "تأكيد الحذف" : "Confirm Delete"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {isRtl ? "هل أنت متأكد من حذف هذا الملف؟" : "Are you sure you want to delete this file?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{isRtl ? "إلغاء" : "Cancel"}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmSingleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{isRtl ? "حذف" : "Delete"}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      {/* Single Delete Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={singleDeleteConfirm !== null}
-        title={isRtl ? "تأكيد الحذف" : "Confirm Delete"}
-        message={
-          isRtl
-            ? "هل أنت متأكد من حذف هذا الملف؟"
-            : "Are you sure you want to delete this file?"
-        }
-        confirmText={isRtl ? "حذف" : "Delete"}
-        cancelText={isRtl ? "إلغاء" : "Cancel"}
-        onConfirm={confirmSingleDelete}
-        onCancel={() => setSingleDeleteConfirm(null)}
-        isDanger={true}
-        isRtl={isRtl}
-      />
+      {/* Delete Rule Confirmation */}
+      <AlertDialog open={deleteRuleConfirm !== null} onOpenChange={(open) => { if (!open) setDeleteRuleConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{isRtl ? "تأكيد حذف القاعدة" : "Delete Rule Confirmation"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {isRtl ? "هل أنت متأكد من حذف قاعدة الخصم هذه؟ لا يمكن التراجع عن هذا الإجراء." : "Are you sure you want to delete this discount rule? This action cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{isRtl ? "إلغاء" : "Cancel"}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteRule} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{isRtl ? "حذف" : "Delete"}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      {/* Delete Rule Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={deleteRuleConfirm !== null}
-        title={isRtl ? "تأكيد حذف القاعدة" : "Delete Rule Confirmation"}
-        message={
-          isRtl
-            ? "هل أنت متأكد من حذف قاعدة الخصم هذه؟ لا يمكن التراجع عن هذا الإجراء."
-            : "Are you sure you want to delete this discount rule? This action cannot be undone."
-        }
-        confirmText={isRtl ? "حذف" : "Delete"}
-        cancelText={isRtl ? "إلغاء" : "Cancel"}
-        onConfirm={confirmDeleteRule}
-        onCancel={() => setDeleteRuleConfirm(null)}
-        isDanger={true}
-        isRtl={isRtl}
-      />
+      {/* Toaster */}
+      <Toaster />
 
-{/* Rule Form Modal */}
-{showRuleForm && (
-  <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
-    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowRuleForm(false)} />
-    <div className={`relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto ${isRtl ? "rtl" : ""}`}>
-      <div className="px-6 py-4 border-b border-gray-100">
-        <h3 className="text-lg font-bold text-gray-900">
-          {isEditingRule
-            ? (isRtl ? "تعديل قاعدة الخصم" : "Edit Discount Rule")
-            : (isRtl ? "إضافة قاعدة خصم" : "Add Discount Rule")}
-        </h3>
+{/* Rule Form Dialog */}
+<Dialog open={showRuleForm} onOpenChange={setShowRuleForm}>
+  <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle>
+        {isEditingRule
+          ? (isRtl ? "تعديل قاعدة الخصم" : "Edit Discount Rule")
+          : (isRtl ? "إضافة قاعدة خصم" : "Add Discount Rule")}
+      </DialogTitle>
+    </DialogHeader>
+
+    <div className="space-y-5">
+      {/* Rule Name */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          {isRtl ? "اسم القاعدة" : "Rule Name"} *
+        </label>
+        <Input
+          value={ruleFormData.name || ""}
+          onChange={(e) => setRuleFormData({ ...ruleFormData, name: e.target.value })}
+          placeholder={isRtl ? "مثال: خصم الطلبات الكبيرة" : "e.g., Bulk Order Discount"}
+        />
       </div>
 
-      <div className="p-6 space-y-5">
-        {/* Rule Name */}
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            {isRtl ? "اسم القاعدة" : "Rule Name"} *
-          </label>
-          <input
-            type="text"
-            value={ruleFormData.name || ""}
-            onChange={(e) => setRuleFormData({ ...ruleFormData, name: e.target.value })}
-            placeholder={isRtl ? "مثال: خصم الطلبات الكبيرة" : "e.g., Bulk Order Discount"}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-          />
+      {/* Discount Type */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          {isRtl ? "نوع الخصم" : "Discount Type"}
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <Button
+            type="button"
+            variant={ruleFormData.discount_type === "percent" ? "default" : "outline"}
+            onClick={() => setRuleFormData({ ...ruleFormData, discount_type: "percent" })}
+          >
+            {isRtl ? "نسبة مئوية (%)" : "Percentage (%)"}
+          </Button>
+          <Button
+            type="button"
+            variant={ruleFormData.discount_type === "fixed" ? "default" : "outline"}
+            onClick={() => setRuleFormData({ ...ruleFormData, discount_type: "fixed" })}
+          >
+            {isRtl ? "مبلغ ثابت (DZD)" : "Fixed Amount (DZD)"}
+          </Button>
         </div>
+      </div>
 
-        {/* Discount Type */}
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            {isRtl ? "نوع الخصم" : "Discount Type"}
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setRuleFormData({ ...ruleFormData, discount_type: "percent" })}
-              className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
-                ruleFormData.discount_type === "percent"
-                  ? "border-purple-500 bg-purple-50 text-purple-700"
-                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-              }`}
-            >
-              {isRtl ? "نسبة مئوية (%)" : "Percentage (%)"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setRuleFormData({ ...ruleFormData, discount_type: "fixed" })}
-              className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
-                ruleFormData.discount_type === "fixed"
-                  ? "border-purple-500 bg-purple-50 text-purple-700"
-                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-              }`}
-            >
-              {isRtl ? "مبلغ ثابت (DZD)" : "Fixed Amount (DZD)"}
-            </button>
-          </div>
-        </div>
-
-        {/* Discount Value */}
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            {ruleFormData.discount_type === "percent"
-              ? (isRtl ? "نسبة الخصم" : "Discount Percentage")
-              : (isRtl ? "مبلغ الخصم" : "Discount Amount")}
-          </label>
-          <div className="relative">
-            <input
-              type="number"
-              min="0"
-              step={ruleFormData.discount_type === "percent" ? "1" : "0.01"}
-              value={ruleFormData.discount_value || ""}
-              onChange={(e) => setRuleFormData({ ...ruleFormData, discount_value: parseFloat(e.target.value) })}
-              placeholder={ruleFormData.discount_type === "percent" ? (isRtl ? "مثال: 10" : "e.g. 10") : (isRtl ? "مثال: 50" : "e.g. 50")}
-              className={`w-full px-4 py-3 ${isRtl ? "pl-16 pr-4" : "pr-16 pl-4"} bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all`}
-            />
-            <span className={`absolute ${isRtl ? "left-4" : "right-4"} top-1/2 -translate-y-1/2 text-gray-400 font-semibold pointer-events-none`}>
-              {ruleFormData.discount_type === "percent" ? "%" : "DZD"}
-            </span>
-          </div>
-        </div>
-
-        {/* Condition Type */}
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            {isRtl ? "الشرط" : "Condition"}
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setRuleFormData({ ...ruleFormData, condition_type: "pages" })}
-              className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
-                ruleFormData.condition_type === "pages"
-                  ? "border-purple-500 bg-purple-50 text-purple-700"
-                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-              }`}
-            >
-              {isRtl ? "عدد الصفحات" : "Page Count"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setRuleFormData({ ...ruleFormData, condition_type: "amount" })}
-              className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all ${
-                ruleFormData.condition_type === "amount"
-                  ? "border-purple-500 bg-purple-50 text-purple-700"
-                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-              }`}
-            >
-              {isRtl ? "المبلغ الإجمالي" : "Total Amount"}
-            </button>
-          </div>
-        </div>
-
-        {/* Threshold */}
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            {ruleFormData.condition_type === "pages"
-              ? (isRtl ? "الحد الأدنى للصفحات" : "Minimum Pages")
-              : (isRtl ? "الحد الأدنى للمبلغ" : "Minimum Amount")}
-          </label>
-          <div className="relative">
-            <input
-              type="number"
-              min="1"
-              value={ruleFormData.threshold || ""}
-              onChange={(e) => setRuleFormData({ ...ruleFormData, threshold: parseInt(e.target.value) })}
-              className={`w-full px-4 py-3 ${isRtl ? "pl-20 pr-4" : "pr-20 pl-4"} bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all`}
-            />
-            <span className={`absolute ${isRtl ? "left-4" : "right-4"} top-1/2 -translate-y-1/2 text-gray-400 font-semibold pointer-events-none`}>
-              {ruleFormData.condition_type === "pages"
-                ? (isRtl ? "صفحة" : "pages")
-                : "DZD"}
-            </span>
-          </div>
-        </div>
-
-        {/* Max Cap (Optional) */}
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            {isRtl ? "الحد الأقصى للخصم (اختياري)" : "Max Discount Cap (Optional)"}
-          </label>
-          <div className="relative">
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={ruleFormData.max_discount_cap || ""}
-              onChange={(e) => setRuleFormData({ ...ruleFormData, max_discount_cap: e.target.value ? parseFloat(e.target.value) : null })}
-              placeholder={isRtl ? "بدون حد أقصى" : "No cap"}
-              className={`w-full px-4 py-3 ${isRtl ? "pl-16 pr-4" : "pr-16 pl-4"} bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all`}
-            />
-            <span className={`absolute ${isRtl ? "left-4" : "right-4"} top-1/2 -translate-y-1/2 text-gray-400 font-semibold pointer-events-none`}>
-              DZD
-            </span>
-          </div>
-        </div>
-
-        {/* Priority */}
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            {isRtl ? "الأولوية" : "Priority"}
-          </label>
-          <input
+      {/* Discount Value */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          {ruleFormData.discount_type === "percent"
+            ? (isRtl ? "نسبة الخصم" : "Discount Percentage")
+            : (isRtl ? "مبلغ الخصم" : "Discount Amount")}
+        </label>
+        <div className="relative">
+          <Input
             type="number"
             min="0"
-            value={ruleFormData.priority || 0}
-            onChange={(e) => setRuleFormData({ ...ruleFormData, priority: parseInt(e.target.value) || 0 })}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+            step={ruleFormData.discount_type === "percent" ? "1" : "0.01"}
+            value={ruleFormData.discount_value || ""}
+            onChange={(e) => setRuleFormData({ ...ruleFormData, discount_value: parseFloat(e.target.value) })}
+            placeholder={ruleFormData.discount_type === "percent" ? (isRtl ? "مثال: 10" : "e.g. 10") : (isRtl ? "مثال: 50" : "e.g. 50")}
+            className={isRtl ? "pl-16 pr-4" : "pr-16 pl-4"}
           />
-          <p className="text-xs text-gray-400 mt-1">
-            {isRtl ? "أرقام أعلى = أولوية أعلى" : "Higher numbers = higher priority"}
-          </p>
+          <span className={`absolute ${isRtl ? "left-4" : "right-4"} top-1/2 -translate-y-1/2 text-gray-400 font-semibold pointer-events-none`}>
+            {ruleFormData.discount_type === "percent" ? "%" : "DZD"}
+          </span>
         </div>
       </div>
 
-      <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
-        <button
-          onClick={handleSaveRule}
-          className="flex-1 bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 transition-all"
-        >
-          {isEditingRule
-            ? (isRtl ? "حفظ التغييرات" : "Save Changes")
-            : (isRtl ? "إنشاء القاعدة" : "Create Rule")}
-        </button>
-        <button
-          onClick={() => setShowRuleForm(false)}
-          className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 transition-all"
-        >
-          {isRtl ? "إلغاء" : "Cancel"}
-        </button>
+      {/* Condition Type */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          {isRtl ? "الشرط" : "Condition"}
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <Button
+            type="button"
+            variant={ruleFormData.condition_type === "pages" ? "default" : "outline"}
+            onClick={() => setRuleFormData({ ...ruleFormData, condition_type: "pages" })}
+          >
+            {isRtl ? "عدد الصفحات" : "Page Count"}
+          </Button>
+          <Button
+            type="button"
+            variant={ruleFormData.condition_type === "amount" ? "default" : "outline"}
+            onClick={() => setRuleFormData({ ...ruleFormData, condition_type: "amount" })}
+          >
+            {isRtl ? "المبلغ الإجمالي" : "Total Amount"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Threshold */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          {ruleFormData.condition_type === "pages"
+            ? (isRtl ? "الحد الأدنى للصفحات" : "Minimum Pages")
+            : (isRtl ? "الحد الأدنى للمبلغ" : "Minimum Amount")}
+        </label>
+        <div className="relative">
+          <Input
+            type="number"
+            min="1"
+            value={ruleFormData.threshold || ""}
+            onChange={(e) => setRuleFormData({ ...ruleFormData, threshold: parseInt(e.target.value) })}
+            className={isRtl ? "pl-20 pr-4" : "pr-20 pl-4"}
+          />
+          <span className={`absolute ${isRtl ? "left-4" : "right-4"} top-1/2 -translate-y-1/2 text-gray-400 font-semibold pointer-events-none`}>
+            {ruleFormData.condition_type === "pages"
+              ? (isRtl ? "صفحة" : "pages")
+              : "DZD"}
+          </span>
+        </div>
+      </div>
+
+      {/* Max Cap (Optional) */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          {isRtl ? "الحد الأقصى للخصم (اختياري)" : "Max Discount Cap (Optional)"}
+        </label>
+        <div className="relative">
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            value={ruleFormData.max_discount_cap || ""}
+            onChange={(e) => setRuleFormData({ ...ruleFormData, max_discount_cap: e.target.value ? parseFloat(e.target.value) : null })}
+            placeholder={isRtl ? "بدون حد أقصى" : "No cap"}
+            className={isRtl ? "pl-16 pr-4" : "pr-16 pl-4"}
+          />
+          <span className={`absolute ${isRtl ? "left-4" : "right-4"} top-1/2 -translate-y-1/2 text-gray-400 font-semibold pointer-events-none`}>
+            DZD
+          </span>
+        </div>
+      </div>
+
+      {/* Priority */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          {isRtl ? "الأولوية" : "Priority"}
+        </label>
+        <Input
+          type="number"
+          min="0"
+          value={ruleFormData.priority || 0}
+          onChange={(e) => setRuleFormData({ ...ruleFormData, priority: parseInt(e.target.value) || 0 })}
+        />
+        <p className="text-xs text-gray-400 mt-1">
+          {isRtl ? "أرقام أعلى = أولوية أعلى" : "Higher numbers = higher priority"}
+        </p>
       </div>
     </div>
-  </div>
-)}
+
+    <DialogFooter className="gap-2">
+      <Button variant="outline" onClick={() => setShowRuleForm(false)}>
+        {isRtl ? "إلغاء" : "Cancel"}
+      </Button>
+      <Button onClick={handleSaveRule}>
+        {isEditingRule
+          ? (isRtl ? "حفظ التغييرات" : "Save Changes")
+          : (isRtl ? "إنشاء القاعدة" : "Create Rule")}
+      </Button>
+    </DialogFooter>
+    </DialogContent>
+</Dialog>
     </div>
   );
 };

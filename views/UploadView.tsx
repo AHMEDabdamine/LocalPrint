@@ -9,8 +9,30 @@ import {
   calculateJobDiscount,
 } from "../utils/pricingUtils";
 import QRCode from "qrcode";
-import ToastContainer, { useToast } from "../components/ToastContainer";
-import ConfirmDialog from "../components/ConfirmDialog";
+import { toast } from "../components/ui/use-toast";
+import { Toaster } from "../components/ui/toaster";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "../components/ui/dialog";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { Card, CardContent } from "../components/ui/card";
 
 interface UploadViewProps {
   lang: Language;
@@ -32,7 +54,7 @@ const generateSafeId = () => {
 const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSettings }) => {
   const t = (key: string) => TRANSLATIONS[key][lang] || key;
   const isRtl = lang === "ar";
-  const { toasts, success, error: showError, removeToast } = useToast();
+  // toast() imported from use-toast, called directly
 
   // Confirm dialog state for canceling jobs
   const [cancelConfirm, setCancelConfirm] = useState<{
@@ -132,10 +154,10 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
       try {
         await storageService.deleteJob(cancelConfirm.jobId);
         setRecentJobs((prev) => prev.filter((job) => job.id !== cancelConfirm.jobId));
-        success(isRtl ? "تم إلغاء الطباعة بنجاح" : "Print job cancelled successfully");
+        toast({ title: isRtl ? "تم إلغاء الطباعة بنجاح" : "Print job cancelled successfully", variant: "success" });
       } catch (err) {
         console.error("Failed to cancel job", err);
-        showError(isRtl ? "فشل إلغاء الطباعة" : "Failed to cancel print job");
+        toast({ title: isRtl ? "فشل إلغاء الطباعة" : "Failed to cancel print job", variant: "destructive" });
       }
     }
     setCancelConfirm({ isOpen: false, jobId: null });
@@ -386,95 +408,52 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
     ? Math.round(selectedFiles.reduce((sum, f) => sum + (f.status === "success" ? 100 : f.progress), 0) / selectedFiles.length)
     : 0;
 
-  const confettiItems = Array.from({ length: 24 }, (_, i) => ({
-    id: i,
-    color: ["#6366f1","#8b5cf6","#ec4899","#f59e0b","#10b981","#3b82f6","#ef4444","#f97316"][i % 8],
-    x: `${(Math.random() * 200 - 100).toFixed(0)}px`,
-    y: `${-(Math.random() * 180 + 80).toFixed(0)}px`,
-    delay: `${(Math.random() * 0.5).toFixed(2)}s`,
-    size: `${(Math.random() * 8 + 6).toFixed(0)}px`,
-    shape: i % 3 === 0 ? "50%" : i % 3 === 1 ? "2px" : "0%",
-  }));
-
   if (overallSuccess) {
     return (
       <>
         <style>{`
           @keyframes successPop {
-            0% { transform: scale(0) rotate(-180deg); opacity: 0; }
-            60% { transform: scale(1.25) rotate(15deg); opacity: 1; }
-            80% { transform: scale(0.9) rotate(-5deg); }
-            100% { transform: scale(1) rotate(0deg); opacity: 1; }
-          }
-          @keyframes confettiBurst {
-            0% { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
-            100% { transform: translate(var(--cx), var(--cy)) rotate(720deg) scale(0); opacity: 0; }
+            0% { transform: scale(0); opacity: 0; }
+            60% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
           }
           @keyframes fadeSlideUp {
-            0% { opacity: 0; transform: translateY(20px); }
+            0% { opacity: 0; transform: translateY(12px); }
             100% { opacity: 1; transform: translateY(0); }
           }
-          .success-pop { animation: successPop 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards; }
-          .fade-slide-up { animation: fadeSlideUp 0.5s ease forwards; }
-          .confetti-piece { animation: confettiBurst 1s ease-out var(--delay) forwards; opacity: 0; animation-delay: var(--delay); }
+          .success-pop { animation: successPop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+          .fade-slide-up { animation: fadeSlideUp 0.4s ease forwards; }
         `}</style>
-        <div className="max-w-md mx-auto mt-12 relative">
-          {/* Confetti burst */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden" style={{ top: "60px" }}>
-            {confettiItems.map(c => (
-              <div
-                key={c.id}
-                className="confetti-piece absolute"
-                style={{
-                  "--cx": c.x,
-                  "--cy": c.y,
-                  "--delay": c.delay,
-                  width: c.size,
-                  height: c.size,
-                  backgroundColor: c.color,
-                  borderRadius: c.shape,
-                } as React.CSSProperties}
-              />
-            ))}
-          </div>
-
-          <div className="bg-white p-10 rounded-3xl shadow-2xl shadow-indigo-100/60 text-center border border-gray-100 relative z-10">
-            {/* Animated checkmark */}
-            <div className="success-pop w-24 h-24 mx-auto mb-6 relative">
-              <div className="absolute inset-0 rounded-full bg-green-100 animate-ping opacity-30" style={{ animationDuration: "1.5s" }} />
-              <div className="w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-green-200">
-                <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="max-w-md mx-auto mt-12">
+          <div className="bg-white p-10 rounded-3xl shadow-2xl shadow-indigo-100/60 text-center border border-gray-100">
+            <div className="success-pop w-20 h-20 mx-auto mb-5">
+              <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-200">
+                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
             </div>
 
-            <div className="fade-slide-up" style={{ animationDelay: "0.2s", opacity: 0 }}>
-              <h2 className="text-3xl font-black text-gray-900 mb-2">
+            <div className="fade-slide-up" style={{ animationDelay: "0.15s", opacity: 0 }}>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
                 {isRtl ? "تم الإرسال!" : "Files Sent!"}
               </h2>
-              <p className="text-gray-500 mb-2 text-base">
+              <p className="text-gray-500 mb-6 text-sm">
                 {isRtl ? "وصلت ملفاتك إلى الطابعة بنجاح" : "Your files are on their way to the printer"}
               </p>
-              <div className="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 px-4 py-2 rounded-full text-sm font-semibold mb-8 border border-indigo-100">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-                {isRtl ? "في انتظار الطباعة" : "Queued for printing"}
-              </div>
+              <Button
+                size="lg"
+                className="w-full"
+                onClick={() => {
+                  setOverallSuccess(false);
+                  setSelectedFiles([]);
+                  setFormData({ name: "", phone: "", notes: "" });
+                  setPrintPreferences({ colorMode: "color", copies: 1, paperType: shopSettings?.paperTypes?.[0]?.id || "normal" });
+                }}
+              >
+                {isRtl ? "إرسال ملفات أخرى" : "Send more files"}
+              </Button>
             </div>
-
-            <button
-              onClick={() => {
-                setOverallSuccess(false);
-                setSelectedFiles([]);
-                setFormData({ name: "", phone: "", notes: "" });
-                setPrintPreferences({ colorMode: "color", copies: 1, paperType: shopSettings?.paperTypes?.[0]?.id || "normal" });
-              }}
-              className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold px-8 py-3.5 rounded-2xl hover:from-indigo-700 hover:to-violet-700 transition-all shadow-lg shadow-indigo-200 hover:shadow-xl hover:shadow-indigo-300 active:scale-95 text-base"
-            >
-              {isRtl ? "إرسال ملفات أخرى" : "Send more files"}
-            </button>
           </div>
         </div>
       </>
@@ -489,9 +468,10 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
         </h1>
         <p className="text-gray-600">{t("uploadSub")}</p>
         <div className="mt-4 flex justify-center gap-3">
-          <button
+          <Button
+            variant="link"
             onClick={generateQRCode}
-            className="inline-flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 transition"
+            className="gap-2"
           >
             <svg
               className="w-4 h-4"
@@ -507,7 +487,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
               ></path>
             </svg>
             {isRtl ? "إنشاء رمز QR" : "Generate QR Code"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -523,10 +503,8 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                 ({isRtl ? "اختياري" : "Optional"})
               </span>
             </label>
-            <input
-              type="text"
+            <Input
               disabled={isUploading}
-              className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all disabled:opacity-50"
               value={formData.name}
               onChange={(e) =>
                 setFormData({ ...formData, name: e.target.value })
@@ -542,10 +520,9 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                 ({isRtl ? "اختياري" : "Optional"})
               </span>
             </label>
-            <input
+            <Input
               type="tel"
               disabled={isUploading}
-              className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all disabled:opacity-50"
               value={formData.phone}
               onChange={(e) =>
                 setFormData({ ...formData, phone: e.target.value })
@@ -559,9 +536,8 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
           <label className="block text-sm font-semibold text-gray-700 mb-1">
             {t("notes")}
           </label>
-          <textarea
+          <Textarea
             disabled={isUploading}
-            className="w-full px-5 py-4 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all h-24 resize-none disabled:opacity-50"
             value={formData.notes}
             onChange={(e) =>
               setFormData({ ...formData, notes: e.target.value })
@@ -588,8 +564,9 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                 {isRtl ? "وضع الألوان" : "Color Mode"}
               </label>
               <div className="flex gap-2">
-                <button
+                <Button
                   type="button"
+                  variant={printPreferences.colorMode === "color" ? "default" : "outline"}
                   disabled={isUploading}
                   onClick={() =>
                     setPrintPreferences({
@@ -597,15 +574,13 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                       colorMode: "color",
                     })
                   }
-                  className={`flex-1 px-3 py-2 text-sm font-medium rounded-md border transition ${printPreferences.colorMode === "color"
-                    ? "bg-indigo-600 text-white border-indigo-600"
-                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  className="flex-1"
                 >
                   {isRtl ? "ملون" : "Color"}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant={printPreferences.colorMode === "blackWhite" ? "default" : "outline"}
                   disabled={isUploading}
                   onClick={() =>
                     setPrintPreferences({
@@ -613,13 +588,10 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                       colorMode: "blackWhite",
                     })
                   }
-                  className={`flex-1 px-3 py-2 text-sm font-medium rounded-md border transition ${printPreferences.colorMode === "blackWhite"
-                    ? "bg-indigo-600 text-white border-indigo-600"
-                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  className="flex-1"
                 >
                   {isRtl ? "أبيض وأسود" : "B&W"}
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -629,8 +601,10 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                 {isRtl ? "عدد النسخ" : "Number of Copies"}
               </label>
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="icon"
                   disabled={isUploading || printPreferences.copies <= 1}
                   onClick={() =>
                     setPrintPreferences({
@@ -638,7 +612,6 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                       copies: Math.max(1, printPreferences.copies - 1),
                     })
                   }
-                  className="w-8 h-8 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                   <svg
                     className="w-4 h-4"
@@ -651,10 +624,10 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                       strokeLinejoin="round"
                       strokeWidth="2"
                       d="M20 12H4"
-                    ></path>
+                    />
                   </svg>
-                </button>
-                <input
+                </Button>
+                <Input
                   type="number"
                   min="1"
                   max="100"
@@ -667,10 +640,12 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                       copies: Math.max(1, Math.min(100, value)),
                     });
                   }}
-                  className="flex-1 px-3 py-2 text-center border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 outline-none disabled:bg-gray-50"
+                  className="flex-1 text-center"
                 />
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="icon"
                   disabled={isUploading || printPreferences.copies >= 100}
                   onClick={() =>
                     setPrintPreferences({
@@ -678,7 +653,6 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                       copies: Math.min(100, printPreferences.copies + 1),
                     })
                   }
-                  className="w-8 h-8 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                   <svg
                     className="w-4 h-4"
@@ -691,9 +665,9 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                       strokeLinejoin="round"
                       strokeWidth="2"
                       d="M12 4v16m8-8H4"
-                    ></path>
+                    />
                   </svg>
-                </button>
+                </Button>
               </div>
             </div>
             </div>
@@ -712,15 +686,16 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                       { id: "cardboard", name: "Cardboard", nameAr: "ورق مقوى" },
                     ]
                 ).map((pt) => (
-                  <button
+                  <Button
                     key={pt.id}
                     type="button"
+                    variant={printPreferences.paperType === pt.id ? "default" : "outline"}
                     disabled={isUploading}
                     onClick={() => setPrintPreferences({ ...printPreferences, paperType: pt.id })}
-                    className={`flex-1 min-w-[5rem] px-3 py-2 text-sm font-medium rounded-md border transition ${printPreferences.paperType === pt.id ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"} disabled:opacity-50 disabled:cursor-not-allowed`}
+                    className="flex-1 min-w-[5rem]"
                   >
                     {isRtl ? pt.nameAr : pt.name}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -989,14 +964,15 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
           </div>
         )}
 
-        <button
+        <Button
           type="submit"
+          size="lg"
           disabled={isUploading || selectedFiles.length === 0}
-          className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 transition-all shadow-xl shadow-indigo-600/20 active:scale-[0.98] flex items-center justify-center gap-2 text-lg"
+          className="w-full gap-2 text-lg shadow-xl shadow-indigo-600/20"
         >
           {isUploading ? (
             <svg
-              className="animate-spin h-5 w-5 text-white"
+              className="animate-spin h-5 w-5"
               fill="none"
               viewBox="0 0 24 24"
             >
@@ -1032,7 +1008,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
               {t("uploadBtn")}
             </>
           )}
-        </button>
+        </Button>
       </form>
 
       {/* Recent Uploads Section */}
@@ -1045,10 +1021,8 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
           </div>
           <div className="grid gap-3">
             {recentJobs.map((job) => (
-              <div
-                key={job.id}
-                className="bg-white border border-gray-100 rounded-xl p-4 flex items-center justify-between shadow-sm"
-              >
+              <Card key={job.id}>
+                <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center ${job.status === PrintStatus.PRINTED
@@ -1146,11 +1120,12 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon"
                       onClick={() => handlePreviewJob(job)}
                       title={isRtl ? "معاينة" : "Preview"}
-                      className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition tooltip-container shadow-sm"
                     >
                       <svg
                         className="w-4 h-4"
@@ -1171,13 +1146,15 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                           d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                         />
                       </svg>
-                    </button>
+                    </Button>
                     {job.status === PrintStatus.PENDING && (
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleCancelJob(job.id)}
                         title={isRtl ? "إلغاء طباعة" : "Cancel print"}
-                        className="p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition shadow-sm"
+                        className="text-destructive hover:text-destructive"
                       >
                         <svg
                           className="w-4 h-4"
@@ -1192,11 +1169,12 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                             d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                           />
                         </svg>
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
-              </div>
+              </CardContent>
+            </Card>
             ))}
           </div>
           {shopSettings?.pricing && (
@@ -1224,352 +1202,189 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
         </div>
       )}
 
-      {/* QR Code Modal */}
-      {showQrCode && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-900">
-                {isRtl ? "رمز QR للموقع" : "QR Code for Upload Page"}
-              </h3>
-              <button
-                onClick={() => setShowQrCode(false)}
-                className="text-gray-400 hover:text-gray-600 transition"
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  ></path>
-                </svg>
-              </button>
-            </div>
-
-            <div className="text-center mb-4">
-              <p className="text-sm text-gray-600 mb-2">
-                {isRtl
-                  ? "امسح هذا الرمز للوصول السريع إلى صفحة الرفع"
-                  : "Scan this code for quick access to the upload page"}
-              </p>
-              <p className="text-xs text-gray-500 mb-4">
-                {isRtl
-                  ? "يعمل على نفس الشبكة المحلية فقط"
-                  : "Works on the same local network only"}
-              </p>
-
-              {qrCodeUrl && (
-                <div className="flex justify-center mb-4">
-                  <img
-                    src={qrCodeUrl}
-                    alt="QR Code"
-                    className="border-2 border-gray-200 rounded-lg"
-                  />
-                </div>
-              )}
-
-              <button
-                onClick={downloadQRCode}
-                className="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                  ></path>
-                </svg>
-                {isRtl ? "تحميل رمز QR" : "Download QR Code"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Document Preview Modal */}
-      {showPreviewModal && previewJobUrl && (
-        <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-8 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden relative border border-gray-100">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-              <h3 className="text-xl font-bold text-gray-900">
-                {isRtl ? "معاينة الملف" : "File Preview"}
-              </h3>
-              <button
-                onClick={() => {
-                  setShowPreviewModal(false);
-                  setPreviewJobUrl(null);
-                  setPreviewFileType(null);
-                }}
-                className="text-gray-400 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 transition-colors rounded-full p-2"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            {/* Modal Body / Viewer */}
-            <div className="flex-1 bg-gray-100 overflow-hidden relative flex items-center justify-center">
-              {previewFileType?.startsWith("image/") ? (
+      {/* QR Code Dialog */}
+      <Dialog open={showQrCode} onOpenChange={setShowQrCode}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{isRtl ? "رمز QR للموقع" : "QR Code for Upload Page"}</DialogTitle>
+            <DialogDescription>
+              {isRtl
+                ? "امسح هذا الرمز للوصول السريع إلى صفحة الرفع"
+                : "Scan this code for quick access to the upload page"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground mb-4">
+              {isRtl
+                ? "يعمل على نفس الشبكة المحلية فقط"
+                : "Works on the same local network only"}
+            </p>
+            {qrCodeUrl && (
+              <div className="flex justify-center mb-4">
                 <img
-                  src={previewJobUrl}
-                  alt="Preview"
-                  className="max-w-full max-h-full object-contain p-4 drop-shadow-xl"
+                  src={qrCodeUrl}
+                  alt="QR Code"
+                  className="border-2 border-gray-200 rounded-lg"
                 />
-              ) : previewFileType === "application/pdf" ? (
-                <iframe
-                  src={`${previewJobUrl}#view=FitH`}
-                  className="w-full h-full border-0 bg-transparent"
-                  title="PDF Preview"
+              </div>
+            )}
+            <Button
+              onClick={downloadQRCode}
+              className="w-full gap-2"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                 />
-              ) : (
-                <div className="text-center p-8 bg-white m-8 rounded-xl shadow-sm border border-gray-100 max-w-sm">
-                  <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg
-                      className="w-8 h-8"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
-                  </div>
-                  <h4 className="text-lg font-bold text-gray-900 mb-2">
-                    {isRtl ? "المعاينة غير مدعومة" : "Preview Not Supported"}
-                  </h4>
-                  <p className="text-sm text-gray-500">
-                    {isRtl
-                      ? "لا يمكن معاينة مستندات Office مباشرة على الشبكة المحلية المحمية. سيتم طباعتها بشكل صحيح."
-                      : "Office documents cannot be previewed natively over protected local networks. They will print correctly."}
-                  </p>
-                </div>
-              )}
-            </div>
+              </svg>
+              {isRtl ? "تحميل رمز QR" : "Download QR Code"}
+            </Button>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
-      {/* Upload Animation Overlay */}
-      {isUploading && (
-        <>
-          <style>{`
-            @keyframes floatToPrinter {
-              0%   { transform: translateY(40px) scale(0.85) rotate(-4deg); opacity: 0; }
-              15%  { opacity: 1; }
-              75%  { opacity: 0.9; }
-              100% { transform: translateY(-90px) scale(0.25) rotate(10deg); opacity: 0; }
-            }
-            @keyframes printerBounce {
-              0%, 100% { transform: translateY(0) scale(1); }
-              50%       { transform: translateY(-7px) scale(1.04); }
-            }
-            @keyframes glowPulse {
-              0%, 100% { box-shadow: 0 0 24px rgba(99,102,241,0.4), 0 0 48px rgba(99,102,241,0.15); }
-              50%       { box-shadow: 0 0 48px rgba(99,102,241,0.8), 0 0 96px rgba(99,102,241,0.35), 0 0 140px rgba(139,92,246,0.15); }
-            }
-            @keyframes shimmerBar {
-              0%   { background-position: -200% center; }
-              100% { background-position: 200% center; }
-            }
-            @keyframes dotPulse {
-              0%, 80%, 100% { transform: scale(0.55); opacity: 0.25; }
-              40%            { transform: scale(1);    opacity: 1; }
-            }
-            @keyframes overlayFadeIn {
-              from { opacity: 0; }
-              to   { opacity: 1; }
-            }
-            @keyframes cardSlideUp {
-              from { opacity: 0; transform: translateY(30px) scale(0.95); }
-              to   { opacity: 1; transform: translateY(0)    scale(1); }
-            }
-            .upl-float-1 { animation: floatToPrinter 2.4s ease-in-out infinite 0s; }
-            .upl-float-2 { animation: floatToPrinter 2.4s ease-in-out infinite 0.8s; }
-            .upl-float-3 { animation: floatToPrinter 2.4s ease-in-out infinite 1.6s; }
-            .upl-printer { animation: printerBounce 1.3s ease-in-out infinite, glowPulse 2s ease-in-out infinite; }
-            .upl-shimmer {
-              background: linear-gradient(90deg,#6366f1 0%,#8b5cf6 40%,#c4b5fd 50%,#8b5cf6 60%,#6366f1 100%);
-              background-size: 200% auto;
-              animation: shimmerBar 1.5s linear infinite;
-            }
-            .upl-dot-1 { animation: dotPulse 1.4s ease-in-out infinite 0s; }
-            .upl-dot-2 { animation: dotPulse 1.4s ease-in-out infinite 0.22s; }
-            .upl-dot-3 { animation: dotPulse 1.4s ease-in-out infinite 0.44s; }
-            .upl-overlay { animation: overlayFadeIn 0.25s ease forwards; }
-            .upl-card    { animation: cardSlideUp  0.35s cubic-bezier(0.34,1.3,0.64,1) forwards; }
-          `}</style>
-
-          <div className="upl-overlay fixed inset-0 z-50 flex items-center justify-center px-4"
-            style={{ background: "rgba(10,10,25,0.65)", backdropFilter: "blur(14px)" }}>
-            <div className="upl-card bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm text-center relative overflow-hidden">
-              {/* BG gradient */}
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/80 via-white to-violet-50/80 pointer-events-none" />
-
-              <div className="relative z-10">
-                {/* Printer + floating docs */}
-                <div className="relative flex items-end justify-center h-40 mb-5">
-                  {/* Floating paper 1 */}
-                  <div className="upl-float-1 absolute" style={{ bottom: 10, left: "50%", marginLeft: -60 }}>
-                    <div className="w-10 h-12 bg-white border-2 border-indigo-200 rounded-lg shadow-md flex flex-col items-center justify-center gap-1 p-1.5">
-                      <div className="w-6 h-0.5 bg-indigo-200 rounded" />
-                      <div className="w-5 h-0.5 bg-indigo-100 rounded" />
-                      <div className="w-6 h-0.5 bg-indigo-100 rounded" />
-                    </div>
-                  </div>
-                  {/* Floating paper 2 */}
-                  <div className="upl-float-2 absolute" style={{ bottom: 10, left: "50%", marginLeft: -20 }}>
-                    <div className="w-10 h-12 bg-white border-2 border-violet-200 rounded-lg shadow-md flex items-center justify-center">
-                      <svg className="w-5 h-5 text-violet-300" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/>
-                      </svg>
-                    </div>
-                  </div>
-                  {/* Floating paper 3 */}
-                  <div className="upl-float-3 absolute" style={{ bottom: 10, left: "50%", marginLeft: 20 }}>
-                    <div className="w-10 h-12 bg-white border-2 border-pink-200 rounded-lg shadow-md flex flex-col items-center justify-center gap-1 p-1.5">
-                      <div className="w-6 h-0.5 bg-pink-200 rounded" />
-                      <div className="w-4 h-0.5 bg-pink-100 rounded" />
-                    </div>
-                  </div>
-
-                  {/* Printer */}
-                  <div className="upl-printer absolute top-0 left-1/2 -translate-x-1/2 w-20 h-20 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-300/60">
-                    <div className="absolute inset-0 rounded-2xl bg-indigo-400 animate-ping opacity-15" style={{ animationDuration: "1.8s" }} />
-                    <svg className="w-10 h-10 text-white relative z-10" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm-1 9H8v2h4v-2z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Progress ring */}
-                <div className="relative mx-auto mb-4 w-20 h-20">
-                  <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
-                    <circle cx="40" cy="40" r="34" fill="none" stroke="#e0e7ff" strokeWidth="7" />
-                    <circle
-                      cx="40" cy="40" r="34"
-                      fill="none"
-                      stroke="url(#pg)"
-                      strokeWidth="7"
+      {/* Document Preview Dialog */}
+      <Dialog open={showPreviewModal} onOpenChange={(open) => { if (!open) { setShowPreviewModal(false); setPreviewJobUrl(null); setPreviewFileType(null); }}}>
+        <DialogContent className="sm:max-w-4xl h-[85vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 py-4 border-b shrink-0">
+            <DialogTitle>{isRtl ? "معاينة الملف" : "File Preview"}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 bg-muted overflow-hidden relative flex items-center justify-center">
+            {previewFileType?.startsWith("image/") ? (
+              <img
+                src={previewJobUrl!}
+                alt="Preview"
+                className="max-w-full max-h-full object-contain p-4 drop-shadow-xl"
+              />
+            ) : previewFileType === "application/pdf" ? (
+              <iframe
+                src={`${previewJobUrl}#view=FitH`}
+                className="w-full h-full border-0 bg-transparent"
+                title="PDF Preview"
+              />
+            ) : (
+              <div className="text-center p-8 bg-background m-8 rounded-xl shadow-sm border max-w-sm">
+                <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg
+                    className="w-8 h-8"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
                       strokeLinecap="round"
-                      strokeDasharray="214"
-                      strokeDashoffset={Math.max(4, 214 - (214 * overallProgress / 100))}
-                      style={{ transition: "stroke-dashoffset 0.4s ease" }}
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                     />
-                    <defs>
-                      <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#6366f1" />
-                        <stop offset="100%" stopColor="#8b5cf6" />
-                      </linearGradient>
-                    </defs>
                   </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xl font-black text-indigo-700">{overallProgress}%</span>
-                  </div>
                 </div>
+                <h4 className="text-lg font-bold mb-2">
+                  {isRtl ? "المعاينة غير مدعومة" : "Preview Not Supported"}
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  {isRtl
+                    ? "لا يمكن معاينة مستندات Office مباشرة على الشبكة المحلية المحمية. سيتم طباعتها بشكل صحيح."
+                    : "Office documents cannot be previewed natively over protected local networks. They will print correctly."}
+                </p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
-                {/* Animated label */}
-                <div className="flex items-center justify-center gap-1.5 mb-4">
-                  <span className="text-base font-bold text-gray-800">
-                    {isRtl ? "جاري الإرسال" : "Uploading"}
-                  </span>
-                  <span className="upl-dot-1 w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block" />
-                  <span className="upl-dot-2 w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block" />
-                  <span className="upl-dot-3 w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block" />
-                </div>
-
-                {/* Shimmer progress bar */}
-                <div className="w-full bg-indigo-100 rounded-full h-2.5 overflow-hidden mb-5">
-                  <div
-                    className="upl-shimmer h-full rounded-full"
-                    style={{ width: `${Math.max(overallProgress, 6)}%`, transition: "width 0.4s ease" }}
-                  />
-                </div>
-
-                {/* Per-file list */}
-                <div className="space-y-2.5 text-left max-h-40 overflow-y-auto">
-                  {selectedFiles.map(f => (
-                    <div key={f.id} className="flex items-center gap-2.5">
-                      {f.status === "success" ? (
-                        <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-                          <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      ) : f.status === "uploading" ? (
-                        <div className="w-4 h-4 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin flex-shrink-0" />
-                      ) : (
-                        <div className="w-4 h-4 rounded-full border-2 border-gray-200 flex-shrink-0" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-xs text-gray-700 font-medium truncate">{f.file.name}</span>
-                          <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
-                            {f.status === "success" ? "100%" : `${f.progress}%`}
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-100 rounded-full h-1">
-                          <div
-                            className={`h-full rounded-full transition-all duration-300 ${f.status === "success" ? "bg-green-400" : "bg-indigo-500"}`}
-                            style={{ width: `${f.status === "success" ? 100 : f.progress}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+      {/* Upload Overlay */}
+      {isUploading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200"
+          style={{ background: "rgba(10,10,25,0.6)", backdropFilter: "blur(8px)" }}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center animate-in zoom-in-95 duration-200">
+            {/* Progress ring */}
+            <div className="relative mx-auto mb-3 w-16 h-16">
+              <svg className="w-16 h-16 -rotate-90" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r="34" fill="none" stroke="#e0e7ff" strokeWidth="7" />
+                <circle
+                  cx="40" cy="40" r="34"
+                  fill="none"
+                  stroke="#6366f1"
+                  strokeWidth="7"
+                  strokeLinecap="round"
+                  strokeDasharray="214"
+                  strokeDashoffset={Math.max(4, 214 - (214 * overallProgress / 100))}
+                  style={{ transition: "stroke-dashoffset 0.5s cubic-bezier(0.4, 0, 0.2, 1)" }}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-lg font-bold text-indigo-700 transition-all duration-300">{overallProgress}%</span>
               </div>
             </div>
+
+            <p className="text-sm font-semibold text-gray-700 mb-4">
+              {isRtl ? "جاري الإرسال..." : "Uploading..."}
+            </p>
+
+            {/* Progress bar */}
+            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden mb-5 relative">
+              <div
+                className="h-full rounded-full bg-indigo-600 transition-all duration-500 ease-out"
+                style={{ width: `${Math.max(overallProgress, 4)}%` }}
+              />
+            </div>
+
+            {/* File list (names + status only) */}
+            <div className="space-y-1.5 text-left max-h-32 overflow-y-auto">
+              {selectedFiles.map(f => (
+                <div key={f.id} className="flex items-center gap-2">
+                  {f.status === "success" ? (
+                    <div className="w-3.5 h-3.5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 animate-in fade-in duration-200">
+                      <svg className="w-2 h-2 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  ) : f.status === "uploading" ? (
+                    <div className="w-3.5 h-3.5 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin flex-shrink-0" />
+                  ) : (
+                    <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-200 flex-shrink-0" />
+                  )}
+                  <span className={`text-xs truncate ${f.status === "success" ? "text-green-700 font-medium" : f.status === "error" ? "text-red-600" : "text-gray-600"}`}>
+                    {f.file.name}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </>
+        </div>
       )}
 
-      {/* Toast Notifications */}
-      <ToastContainer toasts={toasts} onRemove={removeToast} isRtl={isRtl} />
-
       {/* Cancel Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={cancelConfirm.isOpen}
-        title={isRtl ? "إلغاء الطباعة" : "Cancel Print Job"}
-        message={
-          isRtl
-            ? "هل أنت متأكد من إلغاء هذه الطباعة؟"
-            : "Are you sure you want to cancel this print job?"
-        }
-        confirmText={isRtl ? "إلغاء" : "Cancel"}
-        cancelText={isRtl ? "تراجع" : "Keep"}
-        onConfirm={confirmCancelJob}
-        onCancel={() => setCancelConfirm({ isOpen: false, jobId: null })}
-        isDanger={true}
-        isRtl={isRtl}
-      />
+      <AlertDialog open={cancelConfirm.isOpen} onOpenChange={(open) => { if (!open) setCancelConfirm({ isOpen: false, jobId: null }); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{isRtl ? "إلغاء الطباعة" : "Cancel Print Job"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {isRtl
+                ? "هل أنت متأكد من إلغاء هذه الطباعة؟"
+                : "Are you sure you want to cancel this print job?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{isRtl ? "تراجع" : "Keep"}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmCancelJob} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isRtl ? "إلغاء" : "Cancel"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Toaster for notifications */}
+      <Toaster />
     </div>
   );
 };

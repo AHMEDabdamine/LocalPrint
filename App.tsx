@@ -214,7 +214,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col antialiased selection:bg-indigo-100 selection:text-indigo-900">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col antialiased font-sans selection:bg-indigo-100 selection:text-indigo-900">
       <nav className="bg-white/80 backdrop-blur-xl border-b border-gray-100/50 px-6 py-2.5 flex items-center justify-between sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white overflow-hidden shadow-sm">
