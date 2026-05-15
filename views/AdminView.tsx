@@ -633,6 +633,7 @@ const AdminView: React.FC<AdminViewProps> = ({
     setPaperTypes(prev => [...prev, newPt]);
     setShowAddPaperTypeForm(false);
     setNewPaperTypeForm({ name: "", nameAr: "", colorPerPage: 30, blackWhitePerPage: 15 });
+    success(isRtl ? "تم إضافة نوع الورق. لا تنس حفظ الإعدادات!" : "Paper type added. Don't forget to save settings!");
   };
 
   const handleSavePaperType = (id: string) => {
@@ -1815,60 +1816,77 @@ const AdminView: React.FC<AdminViewProps> = ({
                     </table>
                   </div>
 
-                  {/* Add new paper type form */}
+                  {/* Add Paper Type Modal */}
                   {showAddPaperTypeForm && (
-                    <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                      <p className="text-xs font-semibold text-indigo-700 mb-3">{isRtl ? "إضافة نوع ورق جديد" : "Add New Paper Type"}</p>
-                      <div className="grid grid-cols-2 gap-2 mb-2">
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">{isRtl ? "الاسم (EN)" : "Name (EN)"}</label>
-                          <input
-                            value={newPaperTypeForm.name}
-                            onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, name: e.target.value })}
-                            placeholder="e.g. Matte"
-                            className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                          />
+                    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+                      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setShowAddPaperTypeForm(false); setNewPaperTypeForm({ name: "", nameAr: "", colorPerPage: 30, blackWhitePerPage: 15 }); }} />
+                      <div className={`relative bg-white rounded-2xl shadow-2xl max-w-md w-full ${isRtl ? "rtl" : ""}`}>
+                        <div className="px-6 py-4 border-b border-gray-100">
+                          <h3 className="text-lg font-bold text-gray-900">
+                            {isRtl ? "إضافة نوع ورق جديد" : "Add New Paper Type"}
+                          </h3>
                         </div>
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">{isRtl ? "الاسم (AR)" : "Name (AR)"}</label>
-                          <input
-                            value={newPaperTypeForm.nameAr}
-                            onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, nameAr: e.target.value })}
-                            placeholder="مثلاً: مطفي"
-                            dir="rtl"
-                            className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                          />
+                        <div className="p-6 space-y-4">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{isRtl ? "الاسم (EN)" : "Name (EN)"}</label>
+                              <input
+                                value={newPaperTypeForm.name}
+                                onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, name: e.target.value })}
+                                placeholder="e.g. Matte"
+                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{isRtl ? "الاسم (AR)" : "Name (AR)"}</label>
+                              <input
+                                value={newPaperTypeForm.nameAr}
+                                onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, nameAr: e.target.value })}
+                                placeholder="مثلاً: مطفي"
+                                dir="rtl"
+                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{isRtl ? "سعر ملون (DZD)" : "Color (DZD)"}</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                value={newPaperTypeForm.colorPerPage}
+                                onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, colorPerPage: parseFloat(e.target.value) || 0 })}
+                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{isRtl ? "سعر أبيض/أسود (DZD)" : "B&W (DZD)"}</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                value={newPaperTypeForm.blackWhitePerPage}
+                                onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, blackWhitePerPage: parseFloat(e.target.value) || 0 })}
+                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">{isRtl ? "سعر ملون (DZD)" : "Color price (DZD)"}</label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.5"
-                            value={newPaperTypeForm.colorPerPage}
-                            onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, colorPerPage: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                          />
+                        <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+                          <button
+                            type="button"
+                            onClick={handleAddPaperType}
+                            className="flex-1 bg-indigo-600 text-white font-bold py-2.5 rounded-xl hover:bg-indigo-700 transition-all"
+                          >
+                            {isRtl ? "إضافة" : "Add"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setShowAddPaperTypeForm(false); setNewPaperTypeForm({ name: "", nameAr: "", colorPerPage: 30, blackWhitePerPage: 15 }); }}
+                            className="flex-1 bg-gray-100 text-gray-700 font-bold py-2.5 rounded-xl hover:bg-gray-200 transition-all"
+                          >
+                            {isRtl ? "إلغاء" : "Cancel"}
+                          </button>
                         </div>
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">{isRtl ? "سعر أبيض/أسود (DZD)" : "B&W price (DZD)"}</label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.5"
-                            value={newPaperTypeForm.blackWhitePerPage}
-                            onChange={e => setNewPaperTypeForm({ ...newPaperTypeForm, blackWhitePerPage: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button type="button" onClick={handleAddPaperType} className="px-4 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-semibold">
-                          {isRtl ? "إضافة" : "Add"}
-                        </button>
-                        <button type="button" onClick={() => { setShowAddPaperTypeForm(false); setNewPaperTypeForm({ name: "", nameAr: "", colorPerPage: 30, blackWhitePerPage: 15 }); }} className="px-4 py-1.5 text-xs bg-white text-gray-600 rounded-lg hover:bg-gray-50 border border-gray-200 transition font-medium">
-                          {isRtl ? "إلغاء" : "Cancel"}
-                        </button>
                       </div>
                     </div>
                   )}

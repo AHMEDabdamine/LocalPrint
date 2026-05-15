@@ -77,6 +77,13 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
   const [discountRules, setDiscountRules] = useState<DiscountRule[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
+  // Sync shopSettings when prop changes (e.g. settings loaded asynchronously from server)
+  useEffect(() => {
+    if (propSettings) {
+      setShopSettings(propSettings);
+    }
+  }, [propSettings]);
+
   useEffect(() => {
     const fetchData = async () => {
       const [jobs, settings, rules] = await Promise.all([

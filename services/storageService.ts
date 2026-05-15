@@ -206,6 +206,31 @@ class StorageService {
     return response.logoUrl;
   }
 
+  // Paper Types
+  async getPaperTypes(): Promise<import("../types").PaperType[]> {
+    return this.safeFetch("/api/paper-types");
+  }
+
+  async createPaperType(pt: import("../types").PaperType): Promise<import("../types").PaperType> {
+    return this.safeFetch("/api/paper-types", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(pt),
+    });
+  }
+
+  async updatePaperType(id: string, updates: Partial<import("../types").PaperType>): Promise<import("../types").PaperType> {
+    return this.safeFetch(`/api/paper-types/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deletePaperType(id: string): Promise<void> {
+    await this.safeFetch(`/api/paper-types/${id}`, { method: "DELETE" });
+  }
+
   // Discount Rules
   async getDiscountRules(): Promise<DiscountRule[]> {
     return this.safeFetch("/api/discount-rules");

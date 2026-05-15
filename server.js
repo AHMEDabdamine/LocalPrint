@@ -5,8 +5,9 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import os from "os";
 import { PDFDocument } from "pdf-lib";
+import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 
-import db, { getSettings, updateSetting, getDiscountRules, getActiveDiscountRules, createDiscountRule, updateDiscountRule, deleteDiscountRule } from './db.js';
+import db, { getSettings, updateSetting, getPaperTypes, replaceAllPaperTypes, createPaperType, updatePaperType, deletePaperType, getDiscountRules, getActiveDiscountRules, createDiscountRule, updateDiscountRule, deleteDiscountRule } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -383,17 +384,19 @@ app.get("/api/files/:filename", (req, res) => {
 
 // Get settings
 app.get("/api/settings", (req, res) => {
-  res.status(200).json(getSettings());
+  const settings = getSettings();
+  settings.paperTypes = getPaperTypes();
+  res.status(200).json(settings);
 });
 
-// Update settings
+// Update settings (shop info only; paper types use dedicated endpoints)
 app.post("/api/settings", (req, res) => {
   try {
     if (req.body.shopName !== undefined) {
       updateSetting('shopName', req.body.shopName);
     }
     if (req.body.paperTypes && Array.isArray(req.body.paperTypes)) {
-      updateSetting('paperTypes', req.body.paperTypes);
+      replaceAllPaperTypes(req.body.paperTypes);
     }
     if (req.body.pricing && typeof req.body.pricing === "object") {
       const currentSettings = getSettings();
@@ -417,12 +420,13 @@ app.post("/api/settings", (req, res) => {
       };
       updateSetting('pricing', newPricing);
     }
-    // Also support general setting updates if passed
     if (req.body.discounts !== undefined) {
       updateSetting('discounts', req.body.discounts);
     }
 
-    res.status(200).json({ success: true, settings: getSettings() });
+    const settings = getSettings();
+    settings.paperTypes = getPaperTypes();
+    res.status(200).json({ success: true, settings });
   } catch (err) {
     console.error("❌ Settings update error:", err);
     res
@@ -463,12 +467,52 @@ app.post("/api/settings/logo", upload.single("logo"), (req, res) => {
   }
 });
 
+// Password hashing helpers
+const SALT_LEN = 16;
+const KEY_LEN = 64;
+
+function hashPassword(password) {
+  const salt = randomBytes(SALT_LEN);
+  const key = scryptSync(password, salt, KEY_LEN);
+  return salt.toString("hex") + ":" + key.toString("hex");
+}
+
+function verifyHash(password, stored) {
+  if (!stored || !stored.includes(":")) {
+    return false;
+  }
+  const [saltHex, keyHex] = stored.split(":");
+  const salt = Buffer.from(saltHex, "hex");
+  const key = Buffer.from(keyHex, "hex");
+  const derivedKey = scryptSync(password, salt, KEY_LEN);
+  if (key.length !== derivedKey.length) return false;
+  return timingSafeEqual(key, derivedKey);
+}
+
+const DEFAULT_PASSWORD = "admin123";
+const DEFAULT_HASH = hashPassword(DEFAULT_PASSWORD);
+
 // Verify admin password
 app.post("/api/auth/verify", (req, res) => {
   const { password } = req.body;
   const settings = getSettings();
-  const stored = settings.adminPassword || "admin123";
-  res.status(200).json({ success: password === stored });
+  let stored = settings.adminPassword;
+
+  if (!stored) {
+    stored = DEFAULT_HASH;
+    updateSetting("adminPassword", stored);
+  }
+
+  if (!stored.includes(":")) {
+    const ok = password === stored;
+    if (ok) {
+      const hashed = hashPassword(password);
+      updateSetting("adminPassword", hashed);
+    }
+    return res.status(200).json({ success: ok });
+  }
+
+  res.status(200).json({ success: verifyHash(password, stored) });
 });
 
 // Change admin password
@@ -476,15 +520,28 @@ app.post("/api/settings/password", (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     const settings = getSettings();
-    const stored = settings.adminPassword || "admin123";
-    if (currentPassword !== stored) {
+    let stored = settings.adminPassword;
+
+    if (!stored) {
+      stored = DEFAULT_HASH;
+      updateSetting("adminPassword", stored);
+    }
+
+    let valid;
+    if (!stored.includes(":")) {
+      valid = currentPassword === stored;
+    } else {
+      valid = verifyHash(currentPassword, stored);
+    }
+
+    if (!valid) {
       return res.status(401).json({ success: false, error: "Current password is incorrect" });
     }
     if (!newPassword || newPassword.length < 4) {
       return res.status(400).json({ success: false, error: "New password must be at least 4 characters" });
     }
-    updateSetting('adminPassword', newPassword);
-    console.log("🔑 Admin password updated");
+    updateSetting("adminPassword", hashPassword(newPassword));
+    console.log("🔑 Admin password updated (hashed)");
     res.status(200).json({ success: true });
   } catch (err) {
     console.error("❌ Password change error:", err);
@@ -680,6 +737,58 @@ app.delete("/api/discount-rules/:id", (req, res) => {
   } catch (err) {
     console.error("❌ Error deleting discount rule:", err);
     res.status(500).json({ error: "Failed to delete discount rule" });
+  }
+});
+
+/**
+ * PAPER TYPES API
+ */
+
+// Get all paper types
+app.get("/api/paper-types", (req, res) => {
+  try {
+    res.status(200).json(getPaperTypes());
+  } catch (err) {
+    console.error("❌ Error fetching paper types:", err);
+    res.status(500).json({ error: "Failed to fetch paper types" });
+  }
+});
+
+// Create paper type
+app.post("/api/paper-types", (req, res) => {
+  try {
+    const { id, name, nameAr, colorPerPage, blackWhitePerPage } = req.body;
+    if (!id || !name) {
+      return res.status(400).json({ error: "Missing required fields (id, name)" });
+    }
+    const pt = createPaperType({ id, name, nameAr: nameAr || '', colorPerPage: parseFloat(colorPerPage) || 0, blackWhitePerPage: parseFloat(blackWhitePerPage) || 0 });
+    res.status(201).json(pt);
+  } catch (err) {
+    console.error("❌ Error creating paper type:", err);
+    res.status(500).json({ error: "Failed to create paper type" });
+  }
+});
+
+// Update paper type
+app.put("/api/paper-types/:id", (req, res) => {
+  try {
+    const pt = updatePaperType(req.params.id, req.body);
+    if (!pt) return res.status(404).json({ error: "Paper type not found" });
+    res.status(200).json(pt);
+  } catch (err) {
+    console.error("❌ Error updating paper type:", err);
+    res.status(500).json({ error: "Failed to update paper type" });
+  }
+});
+
+// Delete paper type
+app.delete("/api/paper-types/:id", (req, res) => {
+  try {
+    deletePaperType(req.params.id);
+    res.status(200).json({ success: true });
+  } catch (err) {
+    console.error("❌ Error deleting paper type:", err);
+    res.status(500).json({ error: "Failed to delete paper type" });
   }
 });
 
