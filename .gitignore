@@ -26,6 +26,6 @@ uploads
 .env
 env
 AGENTS.md
-database.sqlite
-database.sqlite-shm
-database.sqlite-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
