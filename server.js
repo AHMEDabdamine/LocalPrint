@@ -342,7 +342,7 @@ app.put("/api/jobs/:id/preferences", (req, res) => {
     success: true, 
     job: {
       ...updatedJob,
-      printPreferences: { colorMode: finalColorMode, copies: finalCopies }
+      printPreferences: { colorMode: finalColorMode, copies: finalCopies, paperType: finalPaperType }
     } 
   });
 });

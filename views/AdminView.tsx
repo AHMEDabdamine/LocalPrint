@@ -570,6 +570,30 @@ const AdminView: React.FC<AdminViewProps> = ({
   };
 
   // Toggle color mode for a job inline
+  const handlePaperTypeChange = async (job: PrintJob, newPaperType: string) => {
+    if (savingPrefsJobId === job.id) return;
+    const colorMode = job.printPreferences?.colorMode || "color";
+    const copies = job.printPreferences?.copies || 1;
+    setSavingPrefsJobId(job.id);
+    try {
+      await storageService.updateJobPreferences(job.id, { colorMode, copies, paperType: newPaperType });
+      setGroups((prev) =>
+        prev.map((g) => ({
+          ...g,
+          jobs: g.jobs.map((j) =>
+            j.id === job.id
+              ? { ...j, printPreferences: { colorMode, copies, paperType: newPaperType } }
+              : j,
+          ),
+        })),
+      );
+    } catch (err) {
+      console.error("Failed to update paper type", err);
+    } finally {
+      setSavingPrefsJobId(null);
+    }
+  };
+
   const handleToggleColorMode = async (job: PrintJob) => {
     if (savingPrefsJobId === job.id) return;
     const newMode =
@@ -621,7 +645,7 @@ const AdminView: React.FC<AdminViewProps> = ({
             j.id === job.id
               ? {
                   ...j,
-                  printPreferences: { colorMode, copies: safeCopies },
+                  printPreferences: { colorMode, copies: safeCopies, paperType },
                 }
               : j,
           ),
@@ -1193,12 +1217,22 @@ const AdminView: React.FC<AdminViewProps> = ({
                                             </Button>
                                           )}
 
-                                          {/* Paper Type Badge */}
-                                          {job.printPreferences?.paperType && (
-                                            <span className="text-xs px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg font-medium w-max">
-                                              {getPaperTypeName(job.printPreferences.paperType)}
-                                            </span>
-                                          )}
+                                          {/* Paper Type Select */}
+                                          <Select
+                                            value={job.printPreferences?.paperType || "normal"}
+                                            onValueChange={(val) => handlePaperTypeChange(job, val)}
+                                          >
+                                            <SelectTrigger disabled={savingPrefsJobId === job.id} className="h-7 text-xs px-2 py-0 border-amber-200 bg-amber-50 text-amber-700 rounded-lg font-medium w-auto gap-1 focus:ring-amber-500">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {paperTypes.map(pt => (
+                                                <SelectItem key={pt.id} value={pt.id}>
+                                                  {isRtl ? pt.nameAr : pt.name}
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
                                         </div>
                                       )}
                                     </td>
