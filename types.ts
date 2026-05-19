@@ -75,3 +75,22 @@ export interface DiscountResult {
   finalAmount: number;
   savingsPercentage: number;
 }
+
+export interface GmailAttachmentMeta {
+  filename: string;
+  mimeType: string;
+  attachmentId: string;
+  size: number;
+}
+
+export interface GmailPendingEmail {
+  id: number;
+  gmail_message_id: string;
+  email_from: string;
+  email_address: string;
+  subject: string;
+  body_preview: string;
+  attachment_meta: GmailAttachmentMeta[];
+  received_at: string;
+  fetched_at: string;
+}

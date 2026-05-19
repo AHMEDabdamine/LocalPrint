@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,7 +27,9 @@ db.exec(`
     pageCount INTEGER,
     colorMode TEXT DEFAULT 'color',
     copies INTEGER DEFAULT 1,
-    paperType TEXT DEFAULT 'normal'
+    paperType TEXT DEFAULT 'normal',
+    source TEXT DEFAULT 'upload',
+    customerEmail TEXT DEFAULT ''
   );
 
   CREATE TABLE IF NOT EXISTS settings (
@@ -55,7 +58,45 @@ db.exec(`
     is_active INTEGER DEFAULT 1,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS gmail_account (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    gmail_email TEXT DEFAULT '',
+    access_token TEXT DEFAULT '',
+    refresh_token TEXT DEFAULT '',
+    token_expiry TEXT,
+    connected_at TEXT,
+    is_active INTEGER DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS processed_emails (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    gmail_message_id TEXT UNIQUE NOT NULL,
+    processed_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS gmail_pending (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    gmail_message_id TEXT UNIQUE NOT NULL,
+    email_from TEXT,
+    email_address TEXT,
+    subject TEXT,
+    body_preview TEXT,
+    attachment_meta TEXT DEFAULT '[]',
+    received_at TEXT,
+    fetched_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
 `);
+
+// Auto-create the singleton gmail_account row if it doesn't exist
+const gmailRow = db.prepare('SELECT id FROM gmail_account WHERE id = 1').get();
+if (!gmailRow) {
+  db.prepare('INSERT INTO gmail_account (id) VALUES (1)').run();
+}
+
+// Migrations for columns added after initial schema
+try { db.exec(`ALTER TABLE jobs ADD COLUMN customerEmail TEXT DEFAULT ''`); } catch (e) {}
+try { db.exec(`ALTER TABLE jobs ADD COLUMN source TEXT DEFAULT 'upload'`); } catch (e) {}
 
 // Seed default paper types if table is empty
 const paperTypeCount = db.prepare('SELECT COUNT(*) AS count FROM paper_types').get();
@@ -199,6 +240,130 @@ export const updateDiscountRule = (id, updates) => {
 export const deleteDiscountRule = (id) => {
   db.prepare('DELETE FROM discount_rules WHERE id = ?').run(id);
   return id;
+};
+
+/**
+ * Token Encryption Helpers
+ */
+const ENCRYPTION_KEY = (() => {
+  const stored = db.prepare("SELECT value FROM settings WHERE key = '_encryption_key'").get();
+  if (stored) return Buffer.from(stored.value, 'hex');
+  const key = crypto.randomBytes(32);
+  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('_encryption_key', key.toString('hex'));
+  return key;
+})();
+
+function encryptToken(plaintext) {
+  if (!plaintext) return '';
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
+  let encrypted = cipher.update(plaintext, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  const authTag = cipher.getAuthTag().toString('hex');
+  return iv.toString('hex') + ':' + authTag + ':' + encrypted;
+}
+
+function decryptToken(ciphertext) {
+  if (!ciphertext || !ciphertext.includes(':')) return '';
+  const parts = ciphertext.split(':');
+  if (parts.length !== 3) return '';
+  const iv = Buffer.from(parts[0], 'hex');
+  const authTag = Buffer.from(parts[1], 'hex');
+  const encrypted = parts[2];
+  try {
+    const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Gmail Account Helpers
+ */
+export const getGmailAccount = () => {
+  const row = db.prepare('SELECT * FROM gmail_account WHERE id = 1').get();
+  if (!row) return null;
+  return {
+    ...row,
+    access_token: decryptToken(row.access_token),
+    refresh_token: decryptToken(row.refresh_token),
+  };
+};
+
+export const updateGmailTokens = ({ email, accessToken, refreshToken, expiryDate }) => {
+  db.prepare(`
+    UPDATE gmail_account 
+    SET gmail_email = ?, access_token = ?, refresh_token = ?, token_expiry = ?, connected_at = CURRENT_TIMESTAMP, is_active = 1
+    WHERE id = 1
+  `).run(email || '', encryptToken(accessToken || ''), encryptToken(refreshToken || ''), expiryDate || null);
+};
+
+export const disconnectGmail = () => {
+  db.prepare(`
+    UPDATE gmail_account 
+    SET gmail_email = '', access_token = '', refresh_token = '', token_expiry = NULL, is_active = 0
+    WHERE id = 1
+  `).run();
+};
+
+export const isEmailProcessed = (gmailMessageId) => {
+  const row = db.prepare('SELECT id FROM processed_emails WHERE gmail_message_id = ?').get(gmailMessageId);
+  return !!row;
+};
+
+export const markEmailProcessed = (gmailMessageId) => {
+  db.prepare('INSERT OR IGNORE INTO processed_emails (gmail_message_id) VALUES (?)').run(gmailMessageId);
+};
+
+export const getGmailClientId = () => {
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'google_client_id'").get();
+  return row ? row.value : '';
+};
+
+export const getGmailClientSecret = () => {
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'google_client_secret'").get();
+  return row ? row.value : '';
+};
+
+export const saveGmailClientId = (value) => {
+  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('google_client_id', value);
+};
+
+export const saveGmailClientSecret = (value) => {
+  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('google_client_secret', value);
+};
+
+/**
+ * Gmail Pending Emails (awaiting user review)
+ */
+export const getPendingEmails = () => {
+  return db.prepare('SELECT * FROM gmail_pending ORDER BY fetched_at DESC').all();
+};
+
+export const isEmailPending = (gmailMessageId) => {
+  const row = db.prepare('SELECT id FROM gmail_pending WHERE gmail_message_id = ?').get(gmailMessageId);
+  return !!row;
+};
+
+export const addPendingEmail = ({ gmailMessageId, from, emailAddress, subject, bodyPreview, attachmentMeta, receivedAt }) => {
+  db.prepare(`
+    INSERT OR IGNORE INTO gmail_pending (gmail_message_id, email_from, email_address, subject, body_preview, attachment_meta, received_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(gmailMessageId, from || '', emailAddress || '', subject || '', bodyPreview || '', JSON.stringify(attachmentMeta || []), receivedAt || null);
+};
+
+export const removePendingEmail = (id) => {
+  db.prepare('DELETE FROM gmail_pending WHERE id = ?').run(id);
+};
+
+export const getPendingEmailById = (id) => {
+  const row = db.prepare('SELECT * FROM gmail_pending WHERE id = ?').get(id);
+  if (row) row.attachment_meta = JSON.parse(row.attachment_meta || '[]');
+  return row;
 };
 
 export default db;

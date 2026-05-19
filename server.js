@@ -371,9 +371,9 @@ app.delete("/api/jobs/:id", (req, res) => {
   }
 });
 
-// Download/view file
-app.get("/api/files/:filename", (req, res) => {
-  const filePath = path.join(UPLOADS_DIR, req.params.filename);
+// Download/view file — serve from uploads/ directory (full path in /api/files/:segments*)
+app.get(/^\/api\/files\/(.+)/, (req, res) => {
+  const filePath = path.join(UPLOADS_DIR, req.params[0]);
 
   if (fs.existsSync(filePath)) {
     res.sendFile(filePath);
@@ -793,6 +793,198 @@ app.delete("/api/paper-types/:id", (req, res) => {
 });
 
 /**
+ * GMAIL / EMAIL-TO-PRINT ROUTES
+ */
+import {
+  getAuthUrl,
+  handleCallback,
+} from './services/gmailService.js';
+import { pollGmail, startPolling, stopPolling, restartPolling, importPendingEmails, discardPendingEmail } from './services/gmailPolling.js';
+import { getGmailAccount, disconnectGmail, getGmailClientId, getGmailClientSecret, saveGmailClientId, saveGmailClientSecret, getPendingEmails } from './db.js';
+
+// Get Gmail connection status
+app.get('/api/gmail/status', (req, res) => {
+  try {
+    const account = getGmailAccount();
+    res.json({
+      connected: account?.is_active === 1,
+      email: account?.gmail_email || '',
+    });
+  } catch (err) {
+    console.error("❌ Error getting Gmail status:", err);
+    res.status(500).json({ error: "Failed to get Gmail status" });
+  }
+});
+
+// Start OAuth flow
+app.get('/api/gmail/auth', (req, res) => {
+  try {
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const redirectUri = `${protocol}://${req.headers.host}/api/gmail/callback`;
+    const url = getAuthUrl(redirectUri);
+    res.json({ url });
+  } catch (err) {
+    console.error("❌ Error getting auth URL:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// OAuth callback
+app.get('/api/gmail/callback', async (req, res) => {
+  try {
+    const { code } = req.query;
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const redirectUri = `${protocol}://${req.headers.host}/api/gmail/callback`;
+    const email = await handleCallback(code, redirectUri);
+
+    // Start polling on successful connection
+    const settings = getSettings();
+    const pollIntervalSec = parseInt(settings.gmailPollInterval) || 60;
+    startPolling(pollIntervalSec * 1000);
+
+    res.json({ success: true, email });
+  } catch (err) {
+    console.error("❌ Error in Gmail callback:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Disconnect Gmail
+app.post('/api/gmail/disconnect', (req, res) => {
+  try {
+    stopPolling();
+    disconnectGmail();
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error disconnecting Gmail:", err);
+    res.status(500).json({ error: "Failed to disconnect Gmail" });
+  }
+});
+
+// Manual poll trigger
+app.post('/api/gmail/poll', async (req, res) => {
+  try {
+    const result = await pollGmail();
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error polling Gmail:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List pending emails (awaiting user review)
+app.get('/api/gmail/pending', (req, res) => {
+  try {
+    const pending = getPendingEmails().map(p => ({
+      ...p,
+      attachment_meta: JSON.parse(p.attachment_meta || '[]'),
+    }));
+    res.json(pending);
+  } catch (err) {
+    console.error("❌ Error listing pending emails:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Import selected pending emails → create print jobs
+app.post('/api/gmail/import', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids array is required' });
+    }
+    const result = await importPendingEmails(ids);
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error importing emails:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Discard a pending email without importing
+app.delete('/api/gmail/pending/:id', (req, res) => {
+  try {
+    discardPendingEmail(parseInt(req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error discarding pending email:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get attachment data for preview
+app.get('/api/gmail/attachment/:pendingId/:attachmentIndex', async (req, res) => {
+  try {
+    const pendingId = parseInt(req.params.pendingId);
+    const attachmentIndex = parseInt(req.params.attachmentIndex);
+    const { getPendingEmailById } = await import('./db.js');
+    const pending = getPendingEmailById(pendingId);
+    if (!pending) return res.status(404).json({ error: 'Pending email not found' });
+
+    const atts = pending.attachment_meta || [];
+    const att = atts[attachmentIndex];
+    if (!att) return res.status(404).json({ error: 'Attachment not found' });
+
+    const { getGmailClient } = await import('./services/gmailService.js');
+    const gmail = await getGmailClient();
+    const attResponse = await gmail.users.messages.attachments.get({
+      userId: 'me',
+      messageId: pending.gmail_message_id,
+      id: att.attachmentId,
+    });
+
+    const buffer = Buffer.from(attResponse.data.data, 'base64');
+    res.set('Content-Type', att.mimeType);
+    res.set('Content-Disposition', `inline; filename="${att.filename}"`);
+    res.send(buffer);
+  } catch (err) {
+    console.error("❌ Error fetching attachment:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get Gmail settings (client ID/secret)
+app.get('/api/gmail/settings', (req, res) => {
+  try {
+    const settings = getSettings();
+    res.json({
+      clientId: getGmailClientId(),
+      clientSecret: getGmailClientSecret() ? '********' : '',
+      hasClientSecret: !!getGmailClientSecret(),
+      pollInterval: parseInt(settings.gmailPollInterval) || 60,
+      replyTemplate: settings.gmailReplyTemplate || '',
+    });
+  } catch (err) {
+    console.error("❌ Error getting Gmail settings:", err);
+    res.status(500).json({ error: "Failed to get Gmail settings" });
+  }
+});
+
+// Save Gmail settings
+app.post('/api/gmail/settings', async (req, res) => {
+  try {
+    const { clientId, clientSecret } = req.body;
+    if (clientId) saveGmailClientId(clientId);
+    if (clientSecret) saveGmailClientSecret(clientSecret);
+    if (req.body.pollInterval) {
+      updateSetting('gmailPollInterval', parseInt(req.body.pollInterval));
+      const { restartPolling } = await import('./services/gmailPolling.js');
+      restartPolling(parseInt(req.body.pollInterval) * 1000);
+    }
+    if (req.body.replyTemplate !== undefined) {
+      updateSetting('gmailReplyTemplate', req.body.replyTemplate);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error saving Gmail settings:", err);
+    res.status(500).json({ error: "Failed to save Gmail settings" });
+  }
+});
+
+/**
  * STATIC FILE SERVING & SPA ROUTING
  */
 
@@ -846,6 +1038,15 @@ app.listen(PORT, HOST, () => {
 
   console.log(`📂 Uploads directory: ${UPLOADS_DIR}`);
   console.log(`💾 SQLite database: ${path.join(__dirname, 'database.sqlite')}\n`);
+
+  // Auto-start Gmail polling if an account is connected
+  const gmailAcct = getGmailAccount();
+  if (gmailAcct?.is_active) {
+    console.log('📬 Gmail account connected, starting polling...');
+    const settings = getSettings();
+    const pollIntervalSec = parseInt(settings.gmailPollInterval) || 60;
+    startPolling(pollIntervalSec * 1000);
+  }
 });
 
 // Graceful shutdown

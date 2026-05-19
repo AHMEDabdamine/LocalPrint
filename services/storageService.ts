@@ -282,6 +282,69 @@ class StorageService {
       body: JSON.stringify({ currentPassword, newPassword }),
     });
   }
+
+  // ── Gmail integration ──────────────────────────────────────
+
+  async getGmailStatus(): Promise<{ connected: boolean; email: string }> {
+    return this.safeFetch("/api/gmail/status");
+  }
+
+  async getGmailAuthUrl(): Promise<string> {
+    const result = await this.safeFetch("/api/gmail/auth");
+    return result.url;
+  }
+
+  async disconnectGmail(): Promise<void> {
+    await this.safeFetch("/api/gmail/disconnect", { method: "POST" });
+  }
+
+  async triggerGmailPoll(): Promise<any> {
+    return this.safeFetch("/api/gmail/poll", { method: "POST" });
+  }
+
+  async getGmailSettings(): Promise<{ clientId: string; clientSecret: string; hasClientSecret: boolean; pollInterval: number; replyTemplate: string }> {
+    return this.safeFetch("/api/gmail/settings");
+  }
+
+  async saveGmailSettings(clientId: string, clientSecret: string): Promise<void> {
+    await this.safeFetch("/api/gmail/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId, clientSecret }),
+    });
+  }
+
+  async getGmailPending(): Promise<any[]> {
+    return this.safeFetch("/api/gmail/pending");
+  }
+
+  async importGmailEmails(ids: number[]): Promise<any> {
+    return this.safeFetch("/api/gmail/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+  }
+
+  async discardGmailEmail(id: number): Promise<void> {
+    await this.safeFetch(`/api/gmail/pending/${id}`, { method: "DELETE" });
+  }
+
+  async saveGmailPollInterval(interval: number): Promise<void> {
+    await this.safeFetch("/api/gmail/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pollInterval: interval }),
+    });
+  }
+
+  async saveGmailReplyTemplate(template: string): Promise<void> {
+    await this.safeFetch("/api/gmail/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ replyTemplate: template }),
+    });
+  }
 }
 
 export const storageService = new StorageService();

@@ -82,7 +82,7 @@ const AdminView: React.FC<AdminViewProps> = ({
 
   const [groups, setGroups] = useState<CustomerGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"jobs" | "settings">("jobs");
+  const [activeTab, setActiveTab] = useState<"jobs" | "settings" | "gmail">("jobs");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     new Set(),
   );
@@ -114,6 +114,228 @@ const AdminView: React.FC<AdminViewProps> = ({
     [jobId: string]: number;
   }>({});
   const [discountRules, setDiscountRules] = useState<DiscountRule[]>([]);
+
+  // Gmail integration state
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailEmail, setGmailEmail] = useState("");
+  const [gmailClientId, setGmailClientId] = useState("");
+  const [gmailClientSecret, setGmailClientSecret] = useState("");
+  const [gmailHasSecret, setGmailHasSecret] = useState(false);
+  const [gmailPollResult, setGmailPollResult] = useState<string | null>(null);
+  const [gmailPending, setGmailPending] = useState<any[]>([]);
+  const [gmailSelectedIds, setGmailSelectedIds] = useState<Set<number>>(new Set());
+  const [gmailImporting, setGmailImporting] = useState(false);
+  const [gmailShowCredentials, setGmailShowCredentials] = useState(false);
+  const [gmailPollingActive, setGmailPollingActive] = useState(false);
+
+  const [previewJob, setPreviewJob] = useState<PrintJob | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const handlePreview = async (job: PrintJob) => {
+    const url = await storageService.getFileUrl(job.id);
+    if (url) {
+      setPreviewJob(job);
+      setPreviewUrl(url);
+    }
+  };
+
+  const gmailPendingCountRef = useRef(0);
+  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
+
+  const toggleNoteExpand = (id: string) => {
+    setExpandedNotes(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const loadGmailStatus = async () => {
+    try {
+      const [status, settings] = await Promise.all([
+        storageService.getGmailStatus(),
+        storageService.getGmailSettings(),
+      ]);
+      setGmailConnected(status.connected);
+      setGmailEmail(status.email || "");
+      setGmailClientId(settings.clientId || "");
+      setGmailHasSecret(settings.hasClientSecret || false);
+      setGmailPollInterval(settings.pollInterval || 60);
+      setGmailReplyTemplate(settings.replyTemplate || "");
+    } catch (err) {
+      console.error("Failed to load Gmail status:", err);
+    }
+  };
+
+  const loadGmailPending = async () => {
+    try {
+      const pending = await storageService.getGmailPending();
+      setGmailPending(pending);
+      gmailPendingCountRef.current = pending.length;
+      if (pending.length > 0) setGmailPollingActive(true);
+    } catch (err) {
+      console.error("Failed to load pending emails:", err);
+    }
+  };
+
+  const toggleGmailSelection = (id: number) => {
+    setGmailSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleGmailSelectAll = () => {
+    if (gmailSelectedIds.size === gmailPending.length) {
+      setGmailSelectedIds(new Set());
+    } else {
+      setGmailSelectedIds(new Set(gmailPending.map(p => p.id)));
+    }
+  };
+
+  const handleGmailConnect = async () => {
+    try {
+      const url = await storageService.getGmailAuthUrl();
+      const popup = window.open(url, 'gmail-auth', 'width=600,height=700');
+      const pollTimer = setInterval(async () => {
+        if (popup?.closed) {
+          clearInterval(pollTimer);
+          await loadGmailStatus();
+        }
+      }, 1000);
+    } catch (err) {
+      console.error("Failed to connect Gmail:", err);
+    }
+  };
+
+  const handleGmailDisconnect = async () => {
+    try {
+      await storageService.disconnectGmail();
+      setGmailConnected(false);
+      setGmailEmail("");
+    } catch (err) {
+      console.error("Failed to disconnect Gmail:", err);
+    }
+  };
+
+  const handleGmailPoll = async () => {
+    try {
+      await storageService.pollGmail();
+      await loadGmailPending();
+    } catch (err) {
+      console.error("Failed to poll Gmail:", err);
+    }
+  };
+
+  const handleSaveGmailSettings = async () => {
+    try {
+      await storageService.saveGmailSettings(gmailClientId, gmailClientSecret);
+      setGmailHasSecret(true);
+      toast({ title: isRtl ? "تم حفظ إعدادات Gmail" : "Gmail settings saved", variant: "success" });
+    } catch (err) {
+      toast({ title: isRtl ? "فشل حفظ الإعدادات" : "Failed to save settings", variant: "destructive" });
+    }
+  };
+
+  const handleGmailImportSelected = async () => {
+    if (gmailSelectedIds.size === 0) return;
+    setGmailImporting(true);
+    try {
+      const result = await storageService.importGmailEmails(Array.from(gmailSelectedIds));
+      const imported = result.imported || [];
+      const successCount = imported.filter((r: any) => !r.error).length;
+      const errorCount = imported.filter((r: any) => r.error).length;
+      if (errorCount > 0) {
+        const errors = imported.filter((r: any) => r.error).map((r: any) => `${r.subject || r.id}: ${r.error}`).join("; ");
+        toast({ title: `${successCount} imported, ${errorCount} failed`, description: errors, variant: "destructive" });
+      } else {
+        toast({ title: `${successCount} email(s) imported`, variant: "success" });
+      }
+      setGmailSelectedIds(new Set());
+      await loadGmailPending();
+      await loadJobs();
+    } catch (err: any) {
+      console.error("Failed to import emails:", err);
+      toast({ title: "Import failed", description: err.message, variant: "destructive" });
+    } finally {
+      setGmailImporting(false);
+    }
+  };
+
+  const handleGmailDiscardSelected = async () => {
+    for (const id of Array.from(gmailSelectedIds)) {
+      try {
+        await storageService.discardGmailEmail(id);
+      } catch (err) {
+        console.error("Failed to discard email:", err);
+      }
+    }
+    setGmailSelectedIds(new Set());
+    await loadGmailPending();
+  };
+
+  const [gmailPollInterval, setGmailPollInterval] = useState(60);
+  const [gmailReplyTemplate, setGmailReplyTemplate] = useState("");
+
+  const handleSavePollInterval = async () => {
+    try {
+      await storageService.saveGmailPollInterval(gmailPollInterval);
+      toast({ title: isRtl ? "تم حفظ الفاصل الزمني" : "Poll interval saved", variant: "success" });
+    } catch (err) {
+      toast({ title: "Failed to save", variant: "destructive" });
+    }
+  };
+
+  const handleSaveReplyTemplate = async () => {
+    try {
+      await storageService.saveGmailReplyTemplate(gmailReplyTemplate);
+      toast({ title: isRtl ? "تم حفظ قالب الرد" : "Reply template saved", variant: "success" });
+    } catch (err) {
+      toast({ title: "Failed to save", variant: "destructive" });
+    }
+  };
+
+  const getFileTypeIcon = (mimeType: string) => {
+    if (mimeType.includes("pdf")) return "📄";
+    if (mimeType.includes("image")) return "🖼️";
+    if (mimeType.includes("word") || mimeType.includes("document")) return "📝";
+    if (mimeType.includes("excel") || mimeType.includes("spreadsheet")) return "📊";
+    if (mimeType.includes("powerpoint") || mimeType.includes("presentation")) return "📽️";
+    return "📎";
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (!bytes || bytes === 0) return "";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  };
+
+  // Periodic Gmail poll + refresh — checks Gmail API, refreshes the pending list
+  useEffect(() => {
+    if (!gmailConnected) return;
+    const interval = setInterval(async () => {
+      const prev = gmailPendingCountRef.current;
+      try {
+        await storageService.pollGmail();
+        const pending = await storageService.getGmailPending();
+        setGmailPending(pending);
+        gmailPendingCountRef.current = pending.length;
+        if (pending.length > 0) setGmailPollingActive(true);
+        if (pending.length > prev && prev > 0) {
+          const diff = pending.length - prev;
+          toast({ title: isRtl ? `${diff} رسالة بريد إلكتروني جديدة` : `${diff} new email(s)`, description: isRtl ? "تم استلام رسائل بريد إلكتروني جديدة للطباعة" : "New emails received for printing" });
+        }
+      } catch (err) {
+        console.error("Failed to poll pending emails:", err);
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [gmailConnected, isRtl]);
 
   // Tracks which job's copies stepper is open
   const [editingCopiesJobId, setEditingCopiesJobId] = useState<string | null>(
@@ -147,6 +369,8 @@ const AdminView: React.FC<AdminViewProps> = ({
   useEffect(() => {
     loadJobs();
     loadDiscountRules();
+    loadGmailStatus();
+    loadGmailPending();
   }, []);
 
   useEffect(() => {
@@ -819,6 +1043,16 @@ const AdminView: React.FC<AdminViewProps> = ({
         >
           {t("settings")}
         </Button>
+        <Button
+          variant={activeTab === "gmail" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setActiveTab("gmail")}
+        >
+          <svg className="w-4 h-4 mr-1.5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M22.288 5.292A1.2 1.2 0 0021.6 4.8H2.4a1.2 1.2 0 00-.688.492l10.288 7.712 10.288-7.712zM21.6 7.2l-9.6 7.2L2.4 7.2v9.6a1.2 1.2 0 001.2 1.2h16.8a1.2 1.2 0 001.2-1.2V7.2z"/>
+          </svg>
+          {isRtl ? "البريد الإلكتروني" : "Email"}
+        </Button>
       </div>
 
       <div className="min-h-[400px]">
@@ -1130,8 +1364,28 @@ const AdminView: React.FC<AdminViewProps> = ({
                                         </div>
                                       </div>
                                       {job.notes && (
-                                        <div className="text-[11px] text-indigo-600 bg-indigo-50/50 px-2 py-1 rounded-md inline-block mt-2 font-medium">
-                                          {job.notes}
+                                        <div className="mt-2">
+                                          {expandedNotes.has(job.id) || !job.id.startsWith("gmail_") ? (
+                                            <div className="text-[11px] text-indigo-600 bg-indigo-50/50 px-2 py-1 rounded-md inline-block font-medium max-w-xs break-words">
+                                              {job.notes}
+                                            </div>
+                                          ) : (
+                                            <>
+                                              <div className="text-[11px] text-indigo-600 bg-indigo-50/50 px-2 py-1 rounded-md inline-block font-medium max-w-xs break-words">
+                                                {job.notes.length > 120 ? job.notes.slice(0, 120) + "..." : job.notes}
+                                              </div>
+                                              {job.notes.length > 120 && (
+                                                <button onClick={() => toggleNoteExpand(job.id)} className="text-[10px] text-indigo-500 hover:text-indigo-700 ml-1 align-middle underline">
+                                                  {isRtl ? "قراءة المزيد" : "Read more"}
+                                                </button>
+                                              )}
+                                            </>
+                                          )}
+                                          {expandedNotes.has(job.id) && (
+                                            <button onClick={() => toggleNoteExpand(job.id)} className="text-[10px] text-indigo-500 hover:text-indigo-700 ml-1 align-middle underline">
+                                              {isRtl ? "طي" : "Less"}
+                                            </button>
+                                          )}
                                         </div>
                                       )}
                                     </td>
@@ -1304,6 +1558,9 @@ const AdminView: React.FC<AdminViewProps> = ({
                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                                           </Button>
                                         )}
+                                        <Button variant="ghost" size="icon" onClick={() => handlePreview(job)} title={isRtl ? "معاينة" : "Preview"} className="text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700">
+                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                        </Button>
                                         <Button variant="ghost" size="icon" onClick={() => handleEdit(job)} title={t("edit")} className="text-orange-600 hover:bg-orange-100 hover:text-orange-700">
                                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                                         </Button>
@@ -1349,6 +1606,193 @@ const AdminView: React.FC<AdminViewProps> = ({
             );
             })()}
           </>
+        ) : activeTab === "gmail" ? (
+          <div className="max-w-5xl mx-auto">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M22.288 5.292A1.2 1.2 0 0021.6 4.8H2.4a1.2 1.2 0 00-.688.492l10.288 7.712 10.288-7.712zM21.6 7.2l-9.6 7.2L2.4 7.2v9.6a1.2 1.2 0 001.2 1.2h16.8a1.2 1.2 0 001.2-1.2V7.2z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">{isRtl ? "البريد الإلكتروني (Gmail)" : "Email-to-Print (Gmail)"}</CardTitle>
+                    <CardDescription>{isRtl ? "فحص البريد واستيراد المرفقات كطلبات طباعة" : "Check mail and import attachments as print jobs"}</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${gmailConnected ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    <span className="text-sm font-medium text-gray-700">
+                      {gmailConnected
+                        ? (isRtl ? `متصل: ${gmailEmail}` : `Connected: ${gmailEmail}`)
+                        : (isRtl ? "غير متصل" : "Not connected")}
+                    </span>
+                    {gmailPending.length > 0 && (
+                      <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded-full font-medium">
+                        {gmailPending.length} {isRtl ? "بريد جديد" : "pending"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!gmailConnected ? (
+                      <Button size="sm" onClick={handleGmailConnect}>
+                        <svg className="w-4 h-4 mr-1.5" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M22.288 5.292A1.2 1.2 0 0021.6 4.8H2.4a1.2 1.2 0 00-.688.492l10.288 7.712 10.288-7.712zM21.6 7.2l-9.6 7.2L2.4 7.2v9.6a1.2 1.2 0 001.2 1.2h16.8a1.2 1.2 0 001.2-1.2V7.2z"/>
+                        </svg>
+                        {isRtl ? "الاتصال بـ Gmail" : "Connect Gmail"}
+                      </Button>
+                    ) : (
+                      <>
+                        <Button size="sm" variant="outline" onClick={handleGmailPoll}>
+                          <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          {isRtl ? "فحص البريد الآن" : "Check Mail Now"}
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={handleGmailDisconnect}>
+                          <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                          </svg>
+                          {isRtl ? "قطع الاتصال" : "Disconnect"}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {gmailPollResult && (
+                  <div className={`text-sm px-3 py-2 rounded-lg ${gmailPollResult.includes('Error') ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                    {gmailPollResult}
+                  </div>
+                )}
+
+                <button type="button" onClick={() => setGmailShowCredentials(!gmailShowCredentials)} className="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2">
+                  {gmailShowCredentials
+                    ? (isRtl ? "إخفاء إعدادات OAuth" : "Hide OAuth settings")
+                    : (isRtl ? "إظهار إعدادات OAuth" : "Show OAuth settings")}
+                </button>
+
+                {gmailShowCredentials && (
+                  <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Google Client ID</label>
+                        <Input value={gmailClientId} onChange={(e) => setGmailClientId(e.target.value)} placeholder="xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Google Client Secret</label>
+                        <Input value={gmailClientSecret} onChange={(e) => setGmailClientSecret(e.target.value)} placeholder={gmailHasSecret ? "•••••••• (saved)" : "GOCSPX-xxxxxxxxxxxxxxxxxxxx"} />
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button size="sm" variant="outline" onClick={handleSaveGmailSettings}>
+                        {isRtl ? "حفظ بيانات Gmail" : "Save Gmail Credentials"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Polling Interval */}
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                  <label className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+                    {isRtl ? "فترة الفحص (ثواني)" : "Poll Interval (seconds)"}
+                  </label>
+                  <Input type="number" min={10} max={3600} value={gmailPollInterval} onChange={(e) => setGmailPollInterval(parseInt(e.target.value) || 60)} className="w-20" />
+                  <Button size="sm" variant="outline" onClick={handleSavePollInterval}>
+                    {isRtl ? "حفظ" : "Save"}
+                  </Button>
+                </div>
+
+                {/* Auto-reply Template */}
+                <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">
+                    {isRtl ? "قالب الرد التلقائي" : "Auto-reply Template"}
+                  </h4>
+                  <p className="text-xs text-gray-500 mb-2">
+                    {isRtl
+                      ? "يمكنك استخدام: {shopName}, {fileName}, {fileCount}, {estimatedPrice}"
+                      : "Available placeholders: {shopName}, {fileName}, {fileCount}, {estimatedPrice}"}
+                  </p>
+                  <textarea value={gmailReplyTemplate} onChange={(e) => setGmailReplyTemplate(e.target.value)} rows={4} className="w-full text-sm border border-gray-300 rounded-lg p-2 resize-none" placeholder={isRtl ? "اكتب قالب الرد هنا..." : "Write your reply template here..."} />
+                  <div className="flex justify-end mt-2">
+                    <Button size="sm" variant="outline" onClick={handleSaveReplyTemplate}>
+                      {isRtl ? "حفظ القالب" : "Save Template"}
+                    </Button>
+                  </div>
+                </div>
+
+                {gmailConnected && gmailPending.length > 0 && (
+                  <>
+                    <hr className="border-gray-200" />
+                    <div className="border border-gray-100 rounded-xl max-h-[400px] overflow-y-auto">
+                      <div className="sticky top-0 z-10 bg-white flex items-center justify-between p-3 border-b border-gray-100">
+                        <h4 className="font-semibold text-gray-900">
+                          {isRtl ? "رسائل بريد إلكتروني جديدة" : "New Emails"}
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" disabled={gmailSelectedIds.size === 0 || gmailImporting} onClick={handleGmailImportSelected}>
+                            {gmailImporting ? (isRtl ? "جارٍ الاستيراد..." : "Importing...") : (isRtl ? `استيراد المحدد (${gmailSelectedIds.size})` : `Import Selected (${gmailSelectedIds.size})`)}
+                          </Button>
+                          <Button size="sm" variant="outline" disabled={gmailSelectedIds.size === 0} onClick={handleGmailDiscardSelected}>
+                            {isRtl ? "تجاهل" : "Discard"}
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-gray-100">
+                              <th className="p-3 text-left">
+                                <input type="checkbox" checked={gmailPending.length > 0 && gmailSelectedIds.size === gmailPending.length} onChange={toggleGmailSelectAll} className="rounded border-gray-300" />
+                              </th>
+                              <th className="p-3 text-left font-semibold text-gray-600">{isRtl ? "من" : "From"}</th>
+                              <th className="p-3 text-left font-semibold text-gray-600">{isRtl ? "الموضوع" : "Subject"}</th>
+                              <th className="p-3 text-left font-semibold text-gray-600">{isRtl ? "المرفقات" : "Attachments"}</th>
+                              <th className="p-3 text-left font-semibold text-gray-600">{isRtl ? "التاريخ" : "Date"}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {gmailPending.map((email) => (
+                              <tr key={email.id} onClick={() => toggleGmailSelection(email.id)} className={`cursor-pointer border-b border-gray-50 hover:bg-gray-50/50 ${gmailSelectedIds.has(email.id) ? 'bg-blue-50/30' : ''}`}>
+                                <td className="p-3">
+                                  <input type="checkbox" checked={gmailSelectedIds.has(email.id)} onChange={(e) => { e.stopPropagation(); toggleGmailSelection(email.id); }} className="rounded border-gray-300" />
+                                </td>
+                                <td className="p-3">
+                                  <div className="font-medium text-gray-900">{email.email_from}</div>
+                                  <div className="text-xs text-gray-500">{email.email_address}</div>
+                                </td>
+                                <td className="p-3 text-gray-700 max-w-xs truncate">{email.subject}</td>
+                                <td className="p-3">
+                                  {email.attachment_meta && email.attachment_meta.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {email.attachment_meta.map((att, i) => (
+                                        <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs flex items-center gap-1" title={`${att.filename} (${formatFileSize(att.size)})`}>
+                                          <span>{getFileTypeIcon(att.mimeType)}</span>
+                                          <span className="max-w-[80px] truncate">{att.filename}</span>
+                                          {att.size > 0 && <span className="text-gray-400">({formatFileSize(att.size)})</span>}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">{isRtl ? "لا يوجد" : "None"}</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-gray-500 text-xs">{email.fetched_at ? new Date(email.fetched_at).toLocaleString() : ''}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         ) : (
           <div className="max-w-5xl mx-auto">
             {/* Page Header */}
@@ -1981,6 +2425,44 @@ const AdminView: React.FC<AdminViewProps> = ({
     </DialogFooter>
     </DialogContent>
 </Dialog>
+
+      {/* File Preview Dialog */}
+      <Dialog open={previewJob !== null} onOpenChange={(open) => { if (!open) { setPreviewJob(null); setPreviewUrl(null); } }}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              {previewJob?.fileName || ""}
+            </DialogTitle>
+            <DialogDescription>
+              {previewJob && (
+                <span className="text-xs text-gray-400">
+                  {formatSize(previewJob.fileSize)} &middot; {previewJob.fileType}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-center bg-gray-50 rounded-xl p-2 min-h-[300px]">
+            {previewUrl && previewJob?.fileType === "application/pdf" && (
+              <iframe src={previewUrl} className="w-full h-[70vh] rounded-lg" title="PDF Preview" />
+            )}
+            {previewUrl && previewJob?.fileType?.startsWith("image/") && (
+              <img src={previewUrl} alt={previewJob.fileName} className="max-w-full max-h-[70vh] object-contain rounded-lg" />
+            )}
+            {previewUrl && previewJob && !previewJob.fileType?.startsWith("image/") && previewJob.fileType !== "application/pdf" && (
+              <div className="text-center text-gray-400 py-12">
+                <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                <p className="text-sm font-medium">{isRtl ? "لا يمكن معاينة هذا النوع من الملفات" : "Preview not available for this file type"}</p>
+                <Button variant="outline" size="sm" className="mt-4" onClick={() => { if (previewUrl) { const a = document.createElement("a"); a.href = previewUrl; a.download = previewJob.fileName; document.body.appendChild(a); a.click(); document.body.removeChild(a); } }}>
+                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                  {isRtl ? "تحميل الملف" : "Download File"}
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 };
