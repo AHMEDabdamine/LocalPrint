@@ -17,13 +17,10 @@ const ALLOWED_MIME_TYPES = new Set([
 const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024; // 25MB
 
 /**
- * Sanitize a filename: remove path separators and dangerous characters.
+ * Sanitize a filename: keep only safe characters.
  */
 function sanitizeFilename(name) {
-  return name
-    .replace(/[/\\:<>"|?*]/g, '_')
-    .replace(/\s+/g, '_')
-    .substring(0, 200);
+  return path.basename(name).replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 200);
 }
 
 /**
@@ -53,7 +50,8 @@ export async function saveAttachment(filename, mimeType, base64Data, gmailMessag
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  const safeName = `${gmailMessageId}_${sanitizeFilename(filename)}`;
+  const safe = sanitizeFilename(filename);
+  const safeName = `${Date.now()}_${safe}`;
   const filePath = path.join(dir, safeName);
   fs.writeFileSync(filePath, buffer);
 

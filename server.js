@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from "express";
 import multer from "multer";
 import path from "path";
@@ -799,8 +800,8 @@ import {
   getAuthUrl,
   handleCallback,
 } from './services/gmailService.js';
-import { pollGmail, startPolling, stopPolling, restartPolling, importPendingEmails, discardPendingEmail } from './services/gmailPolling.js';
-import { getGmailAccount, disconnectGmail, getGmailClientId, getGmailClientSecret, saveGmailClientId, saveGmailClientSecret, getPendingEmails } from './db.js';
+import { pollGmail, startPolling, stopPolling, restartPolling, importPendingEmails, discardPendingEmail, getPollStatus } from './services/gmailPolling.js';
+import { getGmailAccount, disconnectGmail, getGmailClientId, getGmailClientSecret, saveGmailClientId, saveGmailClientSecret, getPendingEmails, restorePendingEmail } from './db.js';
 
 // Get Gmail connection status
 app.get('/api/gmail/status', (req, res) => {
@@ -819,8 +820,10 @@ app.get('/api/gmail/status', (req, res) => {
 // Start OAuth flow
 app.get('/api/gmail/auth', (req, res) => {
   try {
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const redirectUri = `${protocol}://${req.headers.host}/api/gmail/callback`;
+    const redirectUri = process.env.GMAIL_REDIRECT_URI;
+    if (!redirectUri) {
+      return res.status(500).json({ error: 'GMAIL_REDIRECT_URI environment variable not set' });
+    }
     const url = getAuthUrl(redirectUri);
     res.json({ url });
   } catch (err) {
@@ -836,8 +839,10 @@ app.get('/api/gmail/callback', async (req, res) => {
     if (!code) {
       return res.status(400).json({ error: 'Authorization code required' });
     }
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const redirectUri = `${protocol}://${req.headers.host}/api/gmail/callback`;
+    const redirectUri = process.env.GMAIL_REDIRECT_URI;
+    if (!redirectUri) {
+      return res.status(500).json({ error: 'GMAIL_REDIRECT_URI environment variable not set' });
+    }
     const email = await handleCallback(code, redirectUri);
 
     // Start polling on successful connection
@@ -875,6 +880,15 @@ app.post('/api/gmail/poll', async (req, res) => {
   }
 });
 
+// Poll health status
+app.get('/api/gmail/poll-status', (req, res) => {
+  try {
+    res.json(getPollStatus());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // List pending emails (awaiting user review)
 app.get('/api/gmail/pending', (req, res) => {
   try {
@@ -892,11 +906,11 @@ app.get('/api/gmail/pending', (req, res) => {
 // Import selected pending emails → create print jobs
 app.post('/api/gmail/import', async (req, res) => {
   try {
-    const { ids } = req.body;
+    const { ids, overrides } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'ids array is required' });
     }
-    const result = await importPendingEmails(ids);
+    const result = await importPendingEmails(ids, overrides || {});
     res.json(result);
   } catch (err) {
     console.error("❌ Error importing emails:", err);
@@ -904,7 +918,7 @@ app.post('/api/gmail/import', async (req, res) => {
   }
 });
 
-// Discard a pending email without importing
+// Discard a pending email (soft-delete)
 app.delete('/api/gmail/pending/:id', (req, res) => {
   try {
     discardPendingEmail(parseInt(req.params.id));
@@ -915,9 +929,38 @@ app.delete('/api/gmail/pending/:id', (req, res) => {
   }
 });
 
-// Get attachment data for preview
+// Restore a discarded pending email
+app.post('/api/gmail/pending/:id/restore', (req, res) => {
+  try {
+    restorePendingEmail(parseInt(req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error restoring pending email:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// In-memory rate limiter for attachment previews (30 req/min per IP)
+const previewRateMap = new Map();
+setInterval(() => previewRateMap.clear(), 60 * 1000);
+
+function checkPreviewRateLimit(ip) {
+  const count = previewRateMap.get(ip) || 0;
+  if (count >= 30) return false;
+  previewRateMap.set(ip, count + 1);
+  return true;
+}
+
+const PREVIEW_CACHE_DIR = path.join(UPLOADS_DIR, 'preview_cache');
+
+// Get attachment data for preview (with caching)
 app.get('/api/gmail/attachment/:pendingId/:attachmentIndex', async (req, res) => {
   try {
+    const ip = req.ip || req.connection.remoteAddress;
+    if (!checkPreviewRateLimit(ip)) {
+      return res.status(429).json({ error: 'Too many requests — try again in a minute' });
+    }
+
     const pendingId = parseInt(req.params.pendingId);
     const attachmentIndex = parseInt(req.params.attachmentIndex);
     const { getPendingEmailById } = await import('./db.js');
@@ -928,6 +971,22 @@ app.get('/api/gmail/attachment/:pendingId/:attachmentIndex', async (req, res) =>
     const att = atts[attachmentIndex];
     if (!att) return res.status(404).json({ error: 'Attachment not found' });
 
+    // Check cache first
+    const safeFilename = att.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const cacheKey = `${pendingId}_${attachmentIndex}_${safeFilename}`;
+    const cachePath = path.join(PREVIEW_CACHE_DIR, cacheKey);
+
+    if (!fs.existsSync(PREVIEW_CACHE_DIR)) {
+      fs.mkdirSync(PREVIEW_CACHE_DIR, { recursive: true });
+    }
+
+    if (fs.existsSync(cachePath)) {
+      const cached = fs.readFileSync(cachePath);
+      res.set('Content-Type', att.mimeType);
+      res.set('Content-Disposition', `inline; filename="${att.filename}"`);
+      return res.send(cached);
+    }
+
     const { getGmailClient } = await import('./services/gmailService.js');
     const gmail = await getGmailClient();
     const attResponse = await gmail.users.messages.attachments.get({
@@ -937,6 +996,10 @@ app.get('/api/gmail/attachment/:pendingId/:attachmentIndex', async (req, res) =>
     });
 
     const buffer = Buffer.from(attResponse.data.data, 'base64');
+
+    // Save to cache
+    fs.writeFileSync(cachePath, buffer);
+
     res.set('Content-Type', att.mimeType);
     res.set('Content-Disposition', `inline; filename="${att.filename}"`);
     res.send(buffer);
@@ -1038,6 +1101,13 @@ app.listen(PORT, HOST, () => {
 
   console.log(`📂 Uploads directory: ${UPLOADS_DIR}`);
   console.log(`💾 SQLite database: ${path.join(__dirname, 'database.sqlite')}\n`);
+
+  const gmailRedirectUri = process.env.GMAIL_REDIRECT_URI;
+  if (!gmailRedirectUri) {
+    console.warn('⚠️  GMAIL_REDIRECT_URI not set — Gmail OAuth flow will not work');
+    console.warn('   Set GMAIL_REDIRECT_URI in your .env file, e.g.:');
+    console.warn('   GMAIL_REDIRECT_URI=http://localhost:3001/api/gmail/callback');
+  }
 
   // Auto-start Gmail polling if an account is connected
   const gmailAcct = getGmailAccount();

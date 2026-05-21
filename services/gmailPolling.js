@@ -1,9 +1,10 @@
 import { fetchUnreadEmails } from './gmailService.js';
 import { saveAttachment } from './attachmentService.js';
-import db, { getGmailAccount, isEmailProcessed, markEmailProcessed, isEmailPending, addPendingEmail, removePendingEmail, getPendingEmailById, getSettings } from '../db.js';
+import db, { getGmailAccount, isEmailProcessed, markEmailProcessed, isEmailPending, addPendingEmail, removePendingEmail, softDeletePendingEmail, getPendingEmailById, getSettings } from '../db.js';
 
 let pollingInterval = null;
 const DEFAULT_INTERVAL_MS = 60 * 1000;
+export let lastPolledAt = null;
 
 function extractBody(payload) {
   if (payload.body && payload.body.data) {
@@ -66,8 +67,11 @@ export async function pollGmail() {
   }
 
   try {
-    const emails = await fetchUnreadEmails();
+    const { messages: emails, truncated } = await fetchUnreadEmails();
     console.log(`📨 Gmail poll: found ${emails.length} unread email(s)`);
+    if (truncated) {
+      console.warn('[Gmail] Inbox has more than 100 unread messages — some were skipped this cycle');
+    }
 
     let newCount = 0;
     let skippedCount = 0;
@@ -104,6 +108,7 @@ export async function pollGmail() {
       }
     }
 
+    lastPolledAt = new Date().toISOString();
     return { new: newCount, skipped: skippedCount };
   } catch (err) {
     console.error('❌ Gmail poll error:', err.message);
@@ -114,7 +119,7 @@ export async function pollGmail() {
 /**
  * Import selected pending emails: download attachments and create print jobs.
  */
-export async function importPendingEmails(pendingIds) {
+export async function importPendingEmails(pendingIds, overrides = {}) {
   const account = getGmailAccount();
   if (!account || !account.is_active) {
     return { error: 'No Gmail account connected' };
@@ -131,8 +136,10 @@ export async function importPendingEmails(pendingIds) {
       }
 
       const jobs = [];
+      const jobFileNames = [];
 
-      for (const att of (pending.attachment_meta || [])) {
+      for (let attIdx = 0; attIdx < (pending.attachment_meta || []).length; attIdx++) {
+        const att = pending.attachment_meta[attIdx];
         try {
           const gmail = await (await import('./gmailService.js')).getGmailClient();
           const attResponse = await gmail.users.messages.attachments.get({
@@ -145,6 +152,12 @@ export async function importPendingEmails(pendingIds) {
           if (!savedPath) continue;
 
           const jobId = `gmail_${pending.gmail_message_id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
+          const overrideKey = `${pending.id}_${attIdx}`;
+          const ov = overrides[overrideKey] || {};
+          const colorMode = ov.colorMode || 'color';
+          const copies = parseInt(ov.copies) || 1;
+          const paperType = ov.paperType || 'normal';
 
           db.prepare(`
             INSERT INTO jobs (
@@ -164,13 +177,14 @@ export async function importPendingEmails(pendingIds) {
             'PENDING',
             savedPath,
             null,
-            'color',
-            1,
-            'normal',
+            colorMode,
+            copies,
+            paperType,
             'gmail',
           );
 
           jobs.push(jobId);
+          jobFileNames.push(att.filename);
         } catch (err) {
           console.error(`  ❌ Failed to import attachment ${att.filename}:`, err.message);
         }
@@ -207,10 +221,7 @@ export async function importPendingEmails(pendingIds) {
           `Best regards,`,
           `{shopName}`,
         ].filter(Boolean).join('\n');
-        const fileNames = jobs.map(j => {
-          const row = db.prepare('SELECT fileName FROM jobs WHERE id = ?').get(j);
-          return row ? row.fileName : '';
-        }).filter(Boolean).join(', ');
+        const fileNames = jobFileNames.join(', ');
         const replyBody = template
           .replace(/\{shopName\}/g, settings.shopName || 'Print Shop')
           .replace(/\{fileName\}/g, fileNames || 'your file')
@@ -233,8 +244,12 @@ export async function importPendingEmails(pendingIds) {
 /**
  * Discard a pending email without importing.
  */
+export function getPollStatus() {
+  return { lastPolledAt, isPolling: pollingInterval !== null };
+}
+
 export function discardPendingEmail(id) {
-  removePendingEmail(id);
+  softDeletePendingEmail(id);
 }
 
 export function startPolling(intervalMs) {

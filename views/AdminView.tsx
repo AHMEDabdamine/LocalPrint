@@ -14,6 +14,7 @@ import { formatRelativeTime } from "../utils/timeUtils";
 import ImageEditor from "../components/ImageEditor";
 import { toast } from "../components/ui/use-toast";
 import { Toaster } from "../components/ui/toaster";
+import { ToastAction } from "../components/ui/toast";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -127,6 +128,13 @@ const AdminView: React.FC<AdminViewProps> = ({
   const [gmailImporting, setGmailImporting] = useState(false);
   const [gmailShowCredentials, setGmailShowCredentials] = useState(false);
   const [gmailPollingActive, setGmailPollingActive] = useState(false);
+  const [gmailLastPolledAt, setGmailLastPolledAt] = useState<string | null>(null);
+  const [gmailIsPolling, setGmailIsPolling] = useState(false);
+  const [gmailReviewOpen, setGmailReviewOpen] = useState(false);
+  const [gmailFilterText, setGmailFilterText] = useState("");
+  const [gmailFilterDate, setGmailFilterDate] = useState<"today" | "week" | "all">("all");
+  const [gmailFilterType, setGmailFilterType] = useState<"all" | "pdf" | "images" | "other">("all");
+  const [gmailReviewOverrides, setGmailReviewOverrides] = useState<Record<string, { copies: number; colorMode: string; paperType: string }>>({});
 
   const [previewJob, setPreviewJob] = useState<PrintJob | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -163,6 +171,9 @@ const AdminView: React.FC<AdminViewProps> = ({
       setGmailHasSecret(settings.hasClientSecret || false);
       setGmailPollInterval(settings.pollInterval || 60);
       setGmailReplyTemplate(settings.replyTemplate || "");
+      const pollStatus = await storageService.getGmailPollStatus();
+      setGmailLastPolledAt(pollStatus.lastPolledAt);
+      setGmailIsPolling(pollStatus.isPolling);
     } catch (err) {
       console.error("Failed to load Gmail status:", err);
     }
@@ -193,6 +204,24 @@ const AdminView: React.FC<AdminViewProps> = ({
       setGmailSelectedIds(new Set());
     } else {
       setGmailSelectedIds(new Set(gmailPending.map(p => p.id)));
+    }
+  };
+
+  const toggleGmailFilteredSelectAll = () => {
+    const filteredIds = gmailFilteredPending.map(p => p.id);
+    const allFilteredSelected = filteredIds.every(id => gmailSelectedIds.has(id));
+    if (allFilteredSelected) {
+      setGmailSelectedIds(prev => {
+        const next = new Set(prev);
+        filteredIds.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      setGmailSelectedIds(prev => {
+        const next = new Set(prev);
+        filteredIds.forEach(id => next.add(id));
+        return next;
+      });
     }
   };
 
@@ -240,11 +269,58 @@ const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
+  const gmailFilteredPending = gmailPending.filter(e => {
+    if (gmailFilterText) {
+      const q = gmailFilterText.toLowerCase();
+      const matchesText = (e.email_from || '').toLowerCase().includes(q) ||
+        (e.email_address || '').toLowerCase().includes(q) ||
+        (e.subject || '').toLowerCase().includes(q);
+      if (!matchesText) return false;
+    }
+    if (gmailFilterDate === 'today') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const fetched = new Date(e.fetched_at || e.received_at || 0);
+      if (fetched < today) return false;
+    } else if (gmailFilterDate === 'week') {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const fetched = new Date(e.fetched_at || e.received_at || 0);
+      if (fetched < weekAgo) return false;
+    }
+    if (gmailFilterType !== 'all') {
+      const atts = e.attachment_meta || [];
+      if (atts.length === 0) return gmailFilterType === 'other';
+      const hasMatch = atts.some((att: any) => {
+        const mt = (att.mimeType || '').toLowerCase();
+        if (gmailFilterType === 'pdf') return mt.includes('pdf');
+        if (gmailFilterType === 'images') return mt.includes('image');
+        return !mt.includes('pdf') && !mt.includes('image');
+      });
+      if (!hasMatch) return false;
+    }
+    return true;
+  });
+  const gmailSelectedEmails = gmailPending.filter(e => gmailSelectedIds.has(e.id));
+
   const handleGmailImportSelected = async () => {
     if (gmailSelectedIds.size === 0) return;
+    // Initialize default overrides for all selected email attachments
+    const defaults: Record<string, { copies: number; colorMode: string; paperType: string }> = {};
+    for (const email of gmailSelectedEmails) {
+      for (let i = 0; i < (email.attachment_meta || []).length; i++) {
+        defaults[`${email.id}_${i}`] = { copies: 1, colorMode: 'color', paperType: 'normal' };
+      }
+    }
+    setGmailReviewOverrides(defaults);
+    setGmailReviewOpen(true);
+  };
+
+  const handleGmailConfirmImport = async () => {
+    setGmailReviewOpen(false);
     setGmailImporting(true);
     try {
-      const result = await storageService.importGmailEmails(Array.from(gmailSelectedIds));
+      const result = await storageService.importGmailEmails(Array.from(gmailSelectedIds), gmailReviewOverrides);
       const imported = result.imported || [];
       const successCount = imported.filter((r: any) => !r.error).length;
       const errorCount = imported.filter((r: any) => r.error).length;
@@ -265,8 +341,16 @@ const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
+  const updateGmailOverride = (key: string, field: string, value: any) => {
+    setGmailReviewOverrides(prev => ({
+      ...prev,
+      [key]: { ...prev[key], [field]: value },
+    }));
+  };
+
   const handleGmailDiscardSelected = async () => {
-    for (const id of Array.from(gmailSelectedIds)) {
+    const ids = Array.from(gmailSelectedIds);
+    for (const id of ids) {
       try {
         await storageService.discardGmailEmail(id);
       } catch (err) {
@@ -275,6 +359,23 @@ const AdminView: React.FC<AdminViewProps> = ({
     }
     setGmailSelectedIds(new Set());
     await loadGmailPending();
+    toast({
+      title: `${ids.length} email(s) discarded`,
+      action: React.createElement(ToastAction, {
+        altText: "Undo discard",
+        onClick: async () => {
+          for (const id of ids) {
+            try {
+              await storageService.restoreGmailEmail(id);
+            } catch (err) {
+              console.error("Failed to restore email:", err);
+            }
+          }
+          await loadGmailPending();
+        },
+      }, "Undo"),
+      duration: 5000,
+    });
   };
 
   const [gmailPollInterval, setGmailPollInterval] = useState(60);
@@ -336,6 +437,21 @@ const AdminView: React.FC<AdminViewProps> = ({
     }, 30000);
     return () => clearInterval(interval);
   }, [gmailConnected, isRtl]);
+
+  // Poll health status refresh
+  useEffect(() => {
+    if (!gmailConnected) return;
+    const fetchStatus = async () => {
+      try {
+        const ps = await storageService.getGmailPollStatus();
+        setGmailLastPolledAt(ps.lastPolledAt);
+        setGmailIsPolling(ps.isPolling);
+      } catch {}
+    };
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 30000);
+    return () => clearInterval(interval);
+  }, [gmailConnected]);
 
   // Tracks which job's copies stepper is open
   const [editingCopiesJobId, setEditingCopiesJobId] = useState<string | null>(
@@ -1352,11 +1468,18 @@ const AdminView: React.FC<AdminViewProps> = ({
                                           {ext}
                                         </span>
                                         <div className="flex flex-col">
-                                          <span
-                                            className="text-sm font-semibold text-gray-900 max-w-[200px] truncate"
-                                            title={job.fileName}
-                                          >
-                                            {job.fileName}
+                                          <span className="flex items-center gap-1.5">
+                                            <span
+                                              className="text-sm font-semibold text-gray-900 max-w-[200px] truncate"
+                                              title={job.fileName}
+                                            >
+                                              {job.fileName}
+                                            </span>
+                                            {job.source === "gmail" && (
+                                              <span className="text-[10px] font-semibold text-green-700 bg-green-100 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5 whitespace-nowrap shrink-0">
+                                                Gmail
+                                              </span>
+                                            )}
                                           </span>
                                           <span className="text-xs text-gray-400">
                                             {formatSize(job.fileSize)}
@@ -1636,6 +1759,17 @@ const AdminView: React.FC<AdminViewProps> = ({
                         {gmailPending.length} {isRtl ? "بريد جديد" : "pending"}
                       </span>
                     )}
+                    {gmailConnected && gmailLastPolledAt && (
+                      <span className="text-xs text-gray-400">
+                        {isRtl ? "آخر فحص" : "Last checked"}: {formatRelativeTime(gmailLastPolledAt, lang)}
+                        {!gmailIsPolling && <span className="ml-1 text-yellow-500">({isRtl ? "متوقف" : "stopped"})</span>}
+                      </span>
+                    )}
+                    {gmailConnected && (!gmailLastPolledAt || (Date.now() - new Date(gmailLastPolledAt).getTime() > 10 * 60 * 1000)) && (
+                      <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded-full font-medium">
+                        ⚠️ {isRtl ? "الفحص قد يكون متوقفًا" : "Polling may be stalled"}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {!gmailConnected ? (
@@ -1725,14 +1859,35 @@ const AdminView: React.FC<AdminViewProps> = ({
                   </div>
                 </div>
 
-                {gmailConnected && gmailPending.length > 0 && (
+                {gmailConnected && gmailFilteredPending.length > 0 && (
                   <>
                     <hr className="border-gray-200" />
-                    <div className="border border-gray-100 rounded-xl max-h-[400px] overflow-y-auto">
-                      <div className="sticky top-0 z-10 bg-white flex items-center justify-between p-3 border-b border-gray-100">
-                        <h4 className="font-semibold text-gray-900">
-                          {isRtl ? "رسائل بريد إلكتروني جديدة" : "New Emails"}
-                        </h4>
+                    <div className="border border-gray-100 rounded-xl max-h-[600px] overflow-y-auto">
+                      {/* Filter bar */}
+                      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 p-3 space-y-2">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <h4 className="font-semibold text-gray-900">
+                            {isRtl ? "رسائل بريد إلكتروني جديدة" : "New Emails"}
+                          </h4>
+                          <span className="text-xs text-gray-400">{gmailFilteredPending.length} {isRtl ? "نتيجة" : "result(s)"}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Input value={gmailFilterText} onChange={e => setGmailFilterText(e.target.value)} placeholder={isRtl ? "بحث بالمرسل أو الموضوع..." : "Search sender or subject..."} className="h-8 text-sm min-w-[180px] flex-1" />
+                          <div className="flex items-center gap-1">
+                            {(["all", "today", "week"] as const).map(d => (
+                              <button key={d} type="button" onClick={() => setGmailFilterDate(d)} className={`px-2 py-1 text-xs rounded-lg ${gmailFilterDate === d ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                                {d === "all" ? (isRtl ? "الكل" : "All") : d === "today" ? (isRtl ? "اليوم" : "Today") : (isRtl ? "7 أيام" : "7 days")}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {(["all", "pdf", "images", "other"] as const).map(t => (
+                              <button key={t} type="button" onClick={() => setGmailFilterType(t)} className={`px-2 py-1 text-xs rounded-lg ${gmailFilterType === t ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                                {t === "all" ? (isRtl ? "الكل" : "All") : t === "pdf" ? "PDF" : t === "images" ? (isRtl ? "صور" : "Images") : (isRtl ? "أخرى" : "Other")}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                         <div className="flex items-center gap-2">
                           <Button size="sm" disabled={gmailSelectedIds.size === 0 || gmailImporting} onClick={handleGmailImportSelected}>
                             {gmailImporting ? (isRtl ? "جارٍ الاستيراد..." : "Importing...") : (isRtl ? `استيراد المحدد (${gmailSelectedIds.size})` : `Import Selected (${gmailSelectedIds.size})`)}
@@ -1747,7 +1902,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                           <thead>
                             <tr className="bg-gray-50 border-b border-gray-100">
                               <th className="p-3 text-left">
-                                <input type="checkbox" checked={gmailPending.length > 0 && gmailSelectedIds.size === gmailPending.length} onChange={toggleGmailSelectAll} className="rounded border-gray-300" />
+                                <input type="checkbox" checked={gmailFilteredPending.length > 0 && gmailFilteredPending.every(e => gmailSelectedIds.has(e.id))} onChange={toggleGmailFilteredSelectAll} className="rounded border-gray-300" />
                               </th>
                               <th className="p-3 text-left font-semibold text-gray-600">{isRtl ? "من" : "From"}</th>
                               <th className="p-3 text-left font-semibold text-gray-600">{isRtl ? "الموضوع" : "Subject"}</th>
@@ -1756,7 +1911,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                             </tr>
                           </thead>
                           <tbody>
-                            {gmailPending.map((email) => (
+                            {gmailFilteredPending.map((email) => (
                               <tr key={email.id} onClick={() => toggleGmailSelection(email.id)} className={`cursor-pointer border-b border-gray-50 hover:bg-gray-50/50 ${gmailSelectedIds.has(email.id) ? 'bg-blue-50/30' : ''}`}>
                                 <td className="p-3">
                                   <input type="checkbox" checked={gmailSelectedIds.has(email.id)} onChange={(e) => { e.stopPropagation(); toggleGmailSelection(email.id); }} className="rounded border-gray-300" />
@@ -1792,6 +1947,62 @@ const AdminView: React.FC<AdminViewProps> = ({
                 )}
               </CardContent>
             </Card>
+
+            {/* Review modal before import */}
+            <Dialog open={gmailReviewOpen} onOpenChange={setGmailReviewOpen}>
+              <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{isRtl ? "مراجعة الطلبات قبل الاستيراد" : "Review Before Import"}</DialogTitle>
+                  <DialogDescription>{isRtl ? "تعديل الإعدادات لكل مرفق قبل إنشاء طلبات الطباعة" : "Adjust settings for each attachment before creating print jobs"}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  {gmailSelectedEmails.map(email => (
+                    <div key={email.id} className="border border-gray-200 rounded-xl p-4">
+                      <div className="font-semibold text-gray-900 mb-1">{email.subject || '(no subject)'}</div>
+                      <div className="text-xs text-gray-500 mb-3">{email.email_from} &lt;{email.email_address}&gt;</div>
+                      {(email.attachment_meta || []).length === 0 ? (
+                        <div className="text-sm text-gray-400 italic">{isRtl ? "لا توجد مرفقات" : "No attachments"}</div>
+                      ) : (
+                        <div className="space-y-2">
+                          {email.attachment_meta.map((att: any, i: number) => {
+                            const key = `${email.id}_${i}`;
+                            const ov = gmailReviewOverrides[key] || { copies: 1, colorMode: 'color', paperType: 'normal' };
+                            return (
+                              <div key={i} className="flex flex-wrap items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                                <span className="text-sm font-medium text-gray-700 min-w-[120px] truncate">{att.filename}</span>
+                                <div className="flex items-center gap-2">
+                                  <label className="text-xs text-gray-500">{isRtl ? "نسخ" : "Copies"}</label>
+                                  <Input type="number" min={1} max={99} value={ov.copies} onChange={e => updateGmailOverride(key, 'copies', parseInt(e.target.value) || 1)} className="w-16 h-8 text-sm" />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <label className="text-xs text-gray-500">{isRtl ? "الألوان" : "Color"}</label>
+                                  <select value={ov.colorMode} onChange={e => updateGmailOverride(key, 'colorMode', e.target.value)} className="text-sm border border-gray-300 rounded-lg px-2 py-1 h-8">
+                                    <option value="color">{isRtl ? "ملون" : "Color"}</option>
+                                    <option value="blackWhite">{isRtl ? "أبيض وأسود" : "B&W"}</option>
+                                  </select>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <label className="text-xs text-gray-500">{isRtl ? "الورق" : "Paper"}</label>
+                                  <select value={ov.paperType} onChange={e => updateGmailOverride(key, 'paperType', e.target.value)} className="text-sm border border-gray-300 rounded-lg px-2 py-1 h-8">
+                                    {paperTypes.map(pt => (
+                                      <option key={pt.id} value={pt.id}>{isRtl ? (pt.nameAr || pt.name) : pt.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setGmailReviewOpen(false)}>{isRtl ? "إلغاء" : "Cancel"}</Button>
+                  <Button onClick={handleGmailConfirmImport}>{isRtl ? "تأكيد الاستيراد" : "Confirm Import"}</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         ) : (
           <div className="max-w-5xl mx-auto">
@@ -2191,7 +2402,7 @@ const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             {/* Save Button */}
-            <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+            <div className="sticky bottom-0 bg-white z-10 pb-4 pt-2 mt-6 sm:mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-t border-gray-100">
               <p className="text-sm text-gray-500">
                 {isRtl
                   ? "سيتم حفظ التغييرات فورًا"

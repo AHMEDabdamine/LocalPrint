@@ -302,6 +302,10 @@ class StorageService {
     return this.safeFetch("/api/gmail/poll", { method: "POST" });
   }
 
+  async getGmailPollStatus(): Promise<{ lastPolledAt: string | null; isPolling: boolean }> {
+    return this.safeFetch("/api/gmail/poll-status");
+  }
+
   async getGmailSettings(): Promise<{ clientId: string; clientSecret: string; hasClientSecret: boolean; pollInterval: number; replyTemplate: string }> {
     return this.safeFetch("/api/gmail/settings");
   }
@@ -318,16 +322,20 @@ class StorageService {
     return this.safeFetch("/api/gmail/pending");
   }
 
-  async importGmailEmails(ids: number[]): Promise<any> {
+  async importGmailEmails(ids: number[], overrides?: Record<string, { copies: number; colorMode: string; paperType: string }>): Promise<any> {
     return this.safeFetch("/api/gmail/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids }),
+      body: JSON.stringify({ ids, overrides }),
     });
   }
 
   async discardGmailEmail(id: number): Promise<void> {
     await this.safeFetch(`/api/gmail/pending/${id}`, { method: "DELETE" });
+  }
+
+  async restoreGmailEmail(id: number): Promise<void> {
+    await this.safeFetch(`/api/gmail/pending/${id}/restore`, { method: "POST" });
   }
 
   async saveGmailPollInterval(interval: number): Promise<void> {

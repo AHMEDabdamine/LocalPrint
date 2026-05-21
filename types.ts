@@ -16,6 +16,7 @@ export interface PrintJob {
   status: PrintStatus;
   pageCount?: number;
   fileBlob?: Blob;
+  source?: string;
   printPreferences?: {
     colorMode: "color" | "blackWhite";
     copies: number;

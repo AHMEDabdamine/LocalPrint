@@ -7,6 +7,8 @@ const SCOPES = [
   'https://www.googleapis.com/auth/gmail.send',
 ];
 
+let refreshPromise = null;
+
 export function getOAuth2Client(redirectUri) {
   const clientId = getGmailClientId();
   const clientSecret = getGmailClientSecret();
@@ -69,19 +71,19 @@ export async function getGmailClient() {
   });
 
   if (account.token_expiry && new Date(account.token_expiry) < new Date()) {
-    try {
-      const { credentials } = await oauth2Client.refreshAccessToken();
-      updateGmailTokens({
-        email: account.gmail_email,
-        accessToken: credentials.access_token,
-        refreshToken: credentials.refresh_token || account.refresh_token,
-        expiryDate: credentials.expiry_date ? new Date(credentials.expiry_date).toISOString() : null,
-      });
-      oauth2Client.setCredentials(credentials);
-    } catch (err) {
-      console.error('Failed to refresh Gmail token:', err.message);
-      throw err;
+    if (!refreshPromise) {
+      refreshPromise = (async () => {
+        const { credentials } = await oauth2Client.refreshAccessToken();
+        updateGmailTokens({
+          email: account.gmail_email,
+          accessToken: credentials.access_token,
+          refreshToken: credentials.refresh_token || account.refresh_token,
+          expiryDate: credentials.expiry_date ? new Date(credentials.expiry_date).toISOString() : null,
+        });
+        oauth2Client.setCredentials(credentials);
+      })().finally(() => { refreshPromise = null; });
     }
+    await refreshPromise;
   }
 
   return google.gmail({ version: 'v1', auth: oauth2Client });
@@ -89,16 +91,29 @@ export async function getGmailClient() {
 
 export async function fetchUnreadEmails() {
   const gmail = await getGmailClient();
-  const response = await gmail.users.messages.list({
-    userId: 'me',
-    q: 'is:unread',
-    maxResults: 20,
-  });
+  const allMessageIds = [];
+  let nextPageToken = undefined;
+  const MAX_TOTAL = 100;
 
-  const messages = response.data.messages || [];
+  while (allMessageIds.length < MAX_TOTAL) {
+    const response = await gmail.users.messages.list({
+      userId: 'me',
+      q: 'is:unread',
+      maxResults: Math.min(50, MAX_TOTAL - allMessageIds.length),
+      pageToken: nextPageToken,
+    });
+
+    const batch = response.data.messages || [];
+    allMessageIds.push(...batch);
+
+    nextPageToken = response.data.nextPageToken;
+    if (!nextPageToken) break;
+  }
+
+  const truncated = nextPageToken ? true : false;
   const emails = [];
 
-  for (const msg of messages) {
+  for (const msg of allMessageIds) {
     const full = await gmail.users.messages.get({
       userId: 'me',
       id: msg.id,
@@ -107,7 +122,7 @@ export async function fetchUnreadEmails() {
     emails.push(full.data);
   }
 
-  return emails;
+  return { messages: emails, truncated };
 }
 
 export async function markAsRead(messageId) {

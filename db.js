@@ -97,6 +97,7 @@ if (!gmailRow) {
 // Migrations for columns added after initial schema
 try { db.exec(`ALTER TABLE jobs ADD COLUMN customerEmail TEXT DEFAULT ''`); } catch (e) {}
 try { db.exec(`ALTER TABLE jobs ADD COLUMN source TEXT DEFAULT 'upload'`); } catch (e) {}
+try { db.exec(`ALTER TABLE gmail_pending ADD COLUMN discarded_at TEXT`); } catch (e) {}
 
 // Seed default paper types if table is empty
 const paperTypeCount = db.prepare('SELECT COUNT(*) AS count FROM paper_types').get();
@@ -341,7 +342,7 @@ export const saveGmailClientSecret = (value) => {
  * Gmail Pending Emails (awaiting user review)
  */
 export const getPendingEmails = () => {
-  return db.prepare('SELECT * FROM gmail_pending ORDER BY fetched_at DESC').all();
+  return db.prepare('SELECT * FROM gmail_pending WHERE discarded_at IS NULL ORDER BY fetched_at DESC').all();
 };
 
 export const isEmailPending = (gmailMessageId) => {
@@ -354,6 +355,14 @@ export const addPendingEmail = ({ gmailMessageId, from, emailAddress, subject, b
     INSERT OR IGNORE INTO gmail_pending (gmail_message_id, email_from, email_address, subject, body_preview, attachment_meta, received_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(gmailMessageId, from || '', emailAddress || '', subject || '', bodyPreview || '', JSON.stringify(attachmentMeta || []), receivedAt || null);
+};
+
+export const softDeletePendingEmail = (id) => {
+  db.prepare("UPDATE gmail_pending SET discarded_at = datetime('now') WHERE id = ?").run(id);
+};
+
+export const restorePendingEmail = (id) => {
+  db.prepare("UPDATE gmail_pending SET discarded_at = NULL WHERE id = ?").run(id);
 };
 
 export const removePendingEmail = (id) => {
