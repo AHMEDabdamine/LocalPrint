@@ -4,6 +4,7 @@ import { TRANSLATIONS } from "./constants";
 import { storageService } from "./services/storageService";
 import UploadView from "./views/UploadView";
 import AdminView from "./views/AdminView";
+import PrintStudio from "./views/PrintStudio";
 import LanguageToggle from "./components/LanguageToggle";
 
 const App: React.FC = () => {
@@ -38,6 +39,7 @@ const App: React.FC = () => {
     document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
     document.documentElement.lang = lang;
     localStorage.setItem("ps_language", lang);
+    window.dispatchEvent(new CustomEvent("ps:langchange", { detail: lang }));
   }, [lang]);
 
   // Load settings from server
@@ -69,6 +71,11 @@ const App: React.FC = () => {
         e.preventDefault();
         navigateToPage("upload");
       }
+      // Ctrl/Cmd + P for Print Studio
+      if ((e.ctrlKey || e.metaKey) && e.key === "p") {
+        e.preventDefault();
+        navigateToPage("studio");
+      }
       // Escape to cancel login or go to upload
       if (e.key === "Escape") {
         if (showAdminLogin && !isAdmin) {
@@ -85,6 +92,12 @@ const App: React.FC = () => {
   }, [isAdmin, showAdminLogin]);
 
   useEffect(() => {
+    if (currentHash === "#studio" && !isAdmin) {
+      window.location.hash = "admin";
+      setShowAdminLogin(true);
+      return;
+    }
+    if (currentHash === "#studio") return;
     if (isAdmin && currentHash !== "#admin") {
       window.location.hash = "admin";
     } else if (!isAdmin && currentHash === "#admin") {
@@ -116,6 +129,10 @@ const App: React.FC = () => {
   };
 
   const handleToggleMode = () => {
+    if (isAdmin && currentHash === "#studio") {
+      window.location.hash = "admin";
+      return;
+    }
     setIsTransitioning(true);
     setTimeout(() => {
       if (isAdmin) {
@@ -128,13 +145,15 @@ const App: React.FC = () => {
     }, 150);
   };
 
-  const navigateToPage = (page: "upload" | "admin") => {
+  const navigateToPage = (page: "upload" | "admin" | "studio") => {
     setIsTransitioning(true);
     setTimeout(() => {
       if (page === "admin" && !isAdmin) {
         setShowAdminLogin(true);
       } else if (page === "admin") {
         window.location.hash = "admin";
+      } else if (page === "studio") {
+        window.location.hash = "studio";
       } else {
         window.location.hash = "";
       }
@@ -143,6 +162,10 @@ const App: React.FC = () => {
   };
 
   const renderContent = () => {
+    if (currentHash === "#studio") {
+      return <PrintStudio />;
+    }
+
     if (showAdminLogin && !isAdmin) {
       return (
         <div className="max-w-md mx-auto">
@@ -247,7 +270,14 @@ const App: React.FC = () => {
             onClick={handleToggleMode}
             className="text-sm font-medium text-gray-700 hover:text-indigo-600 transition-all flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-indigo-50 hover:shadow-sm border border-transparent hover:border-indigo-100 active:scale-95"
           >
-            {isAdmin ? (
+            {isAdmin && currentHash === "#studio" ? (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                {lang === "ar" ? "لوحة التحكم" : "Dashboard"}
+              </>
+            ) : isAdmin ? (
               <>
                 <svg
                   className="w-4 h-4"

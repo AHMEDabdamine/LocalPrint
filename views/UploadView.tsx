@@ -461,7 +461,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
   }
 
   return (
-    <div className={`max-w-xl mx-auto ${isRtl ? "rtl" : ""}`}>
+    <div className={`max-w-2xl mx-auto ${isRtl ? "rtl" : ""}`}>
       <div className="text-center mb-5">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">
           {t("uploadTitle")}
@@ -745,7 +745,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                 }
               }
             }}
-            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+            className={`border-2 border-dashed rounded-xl p-5 sm:p-8 text-center cursor-pointer transition-all ${
               isDragging
                 ? "border-blue-500 bg-blue-50"
                 : "border-gray-300 hover:border-gray-400"
@@ -1022,10 +1022,10 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
           <div className="grid gap-3">
             {recentJobs.map((job) => (
               <Card key={job.id}>
-                <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
+                <CardContent className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${job.status === PrintStatus.PRINTED
+                    className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0 ${job.status === PrintStatus.PRINTED
                       ? "bg-green-100 text-green-600"
                       : "bg-yellow-100 text-yellow-600"
                       }`}
@@ -1061,7 +1061,7 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                     )}
                   </div>
                   <div className="min-w-0">
-                    <p className="font-semibold text-gray-900 truncate max-w-[150px] sm:max-w-xs">
+                    <p className="font-semibold text-gray-900 truncate max-w-[120px] sm:max-w-[200px] md:max-w-xs">
                       {job.fileName}
                     </p>
                     <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
@@ -1095,10 +1095,10 @@ const UploadView: React.FC<UploadViewProps> = ({ lang, shopSettings: propSetting
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-3">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2 sm:gap-3 shrink-0">
+                  <div className="flex items-center gap-2 sm:gap-3">
                     {(shopSettings?.pricing || (shopSettings?.paperTypes && shopSettings.paperTypes.length > 0)) && (
-                      <span className="text-sm font-bold text-green-600 bg-green-50 px-2.5 py-0.5 rounded-md border border-green-100 whitespace-nowrap">
+                      <span className="text-xs sm:text-sm font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-md border border-green-100 whitespace-nowrap">
                         {formatPrice(
                           calculatePrintPrice(
                             job,
